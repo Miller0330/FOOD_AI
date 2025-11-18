@@ -92,18 +92,14 @@ cd Riscv2025_Server_scale_Code; python main.py
 - 若要新增食物類別，請在 `nutrition_data.json` 新增對應條目，並在訓練資料集上加入該類別再重新訓練模型。
 - 建議拉取 issue / PR 的流程與檢查項目：模型正確性、API 相容、相容性測試（含有無磅秤情境）。
 
-## 常見問題與偵錯
-- 如果上傳圖片無法被處理，請確認檔案是否已成功上傳到 `static/uploads`，以及伺服器是否能使用 OpenCV 讀取該圖。
-- 若磅秤連線失敗，檢查 `WeightSensor.py` 的連接埠與驅動，並在 `main.py` 的啟動日誌檢視錯誤資訊。
+## 快速啟動腳本
+- `run_server_normal.sh`
+```bash
+chmod +x run_server_normal.sh
+./run_server_normal.sh
+```
 
-## 參考與授權
-- 本專案為教學/示範用。若有外部模型或第三方程式碼，請遵守原作者授權。
-
----
-
-如果你想，我可以：
-- 將 README 翻成英文版本或雙語版
-- 在 `requirements.txt` 補上必要項目（如果你想我可以檢查並生成）
-- 寫一個簡單的「部署到 Docker」範例
-
-請告訴我接下來要不要做上述其中一項。
+```bash
+chmod +x run_server_scale.sh
+./run_server_scale.sh
+```
