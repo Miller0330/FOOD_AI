@@ -280,6 +280,14 @@
                         </div>
                     </div>
                 </div>
+                <div class="card mb-4">
+                    <div class="card-header" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                        <h5 class="mb-0">AI 營養師建議</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0 fs-5">{{ result.llm_advice if result.llm_advice else "正在分析中..." }}</p>
+                    </div>
+                </div>
                 
                 <div class="card mb-4">
                     <div class="card-header">

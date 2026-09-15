@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+static/uploads/*
+!static/uploads/.gitkeep
+sysprompt.cache
+sysprompt.cache.meta
+Detector.py.bak

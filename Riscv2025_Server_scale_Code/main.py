@@ -1,8 +1,8 @@
+from LLMAdvisor import get_llm_advice, _ensure_prompt_cache
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
 import cv2
 import numpy as np
-import tflite_runtime.interpreter as tflite
 from werkzeug.utils import secure_filename
 import base64
 from datetime import datetime
@@ -134,6 +134,9 @@ def detect():
             'nutrition': total_nutrition,
             'recommendations': dietary_recommendations
         }
+        print("開始呼叫LLM...")
+        llm_advice = get_llm_advice(detection_counts, total_nutrition, dietary_recommendations, detection_weight)
+        result_data['llm_advice'] = llm_advice
         
         return render_template('result.html', 
                               result=result_data, 
@@ -200,5 +203,9 @@ def calculate_nutrition_with_weight():
             'error': str(e)
         }), 500
 
+
 if __name__ == '__main__':
+    print("正在準備 AI 模型，請稍候...")
+    _ensure_prompt_cache()
+    print("AI 模型準備完成")
     app.run(host='0.0.0.0', port=5000, debug=False)

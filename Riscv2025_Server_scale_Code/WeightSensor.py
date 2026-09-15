@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 class WeightSensor:
-    def __init__(self, port='/dev/ttySIF1', baudrate=115200, timeout=1):
+    def __init__(self, port='/dev/ttyUSB1', baudrate=115200, timeout=1):
         """
         初始化重量感測器
         
@@ -134,7 +134,7 @@ class WeightSensor:
 # 全局重量感測器實例
 weight_sensor = WeightSensor()
 
-def initialize_weight_sensor(port='/dev/ttySIF1', baudrate=115200):
+def initialize_weight_sensor(port='/dev/ttyUSB1', baudrate=115200):
     """初始化重量感測器（不啟動持續讀取）"""
     global weight_sensor
     weight_sensor = WeightSensor(port=port, baudrate=baudrate)
