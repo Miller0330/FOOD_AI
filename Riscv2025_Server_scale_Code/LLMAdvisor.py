@@ -156,7 +156,7 @@ def _ensure_prompt_cache() -> bool:
 
     try:
         subprocess.run([
-            '/home/ademo/llama-cli',
+            '/home/ademo/llama-cli-new',
             '-m', '/home/ademo/qwen2.5-0.5b-instruct-q4_0.gguf',
             '-p', prefix,
             '-n', '1',
@@ -191,7 +191,7 @@ def get_llm_advice(detections, nutrition, recommendations, weight):
     cache_ok = _ensure_prompt_cache()
 
     cmd = [
-        '/home/ademo/llama-cli',
+        '/home/ademo/llama-cli-new',
         '-m', '/home/ademo/qwen2.5-0.5b-instruct-q4_0.gguf',
         '-p', prompt,
         '-n', str(GEN_MAX_TOKENS),
