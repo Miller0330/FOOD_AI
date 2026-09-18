@@ -4,9 +4,9 @@ import os
 import hashlib
 
 # ============ 可調參數（依裝置速度調整）============
-GEN_MAX_TOKENS = 70
+GEN_MAX_TOKENS = 150
 CONTEXT_SIZE = 768
-N_THREADS = 4
+N_THREADS = 8
 TIMEOUT_SECONDS = 75
 USE_FEWSHOT = False
 
@@ -14,8 +14,8 @@ USE_FEWSHOT = False
 # 固定前綴（system prompt ± few-shot 範例）的 KV cache 存放路徑。
 # 這段內容每次呼叫都完全相同，llama-cli 支援把算好的 KV 值存成檔案，
 # 下次直接還原，跳過重新計算，可省下大量 prompt eval 時間。
-CACHE_PATH = '/home/ademo/sysprompt.cache'
-CACHE_META_PATH = '/home/ademo/sysprompt.cache.meta'
+CACHE_PATH = '/root/RIV-FoodAI-Backup/Riscv2025_Server_scale_Code/sysprompt.cache'
+CACHE_META_PATH = '/root/RIV-FoodAI-Backup/Riscv2025_Server_scale_Code/sysprompt.cache.meta'
 
 try:
     import opencc
@@ -48,7 +48,7 @@ _SYSTEM_PROMPT = (
     "建議必須因果一致：指出某營養素偏低時，只能推薦能直接補充該營養素的食物類型，"
     "不可推薦與該缺口無關的食物。蛋白質偏低建議蛋、奶、豆、肉；碳水偏低建議適量主食；"
     "蔬菜不足建議蔬菜；水果不足建議水果。不可把使用者已經吃過的食物種類，"
-    "同時當成另一項營養缺口的建議解方。給出2到3句具體建議，不要條列。"
+    "同時當成另一項營養缺口的建議解方。至少給出3句具體建議，內容盡量完整，不要條列。"
 )
 
 _FEWSHOT_USER = "這餐食物是白飯1份、雞胸肉2份，總重量350公克，熱量450大卡，這餐熱量佔每日建議的20.0%，蛋白質攝取達到每日建議的35.0%，碳水化合物達到25.0%，膳食纖維達到10.0%。"
@@ -58,6 +58,17 @@ _ASSISTANT_MARKER = "assistant\n這餐"
 _STOP_MARKERS = ('<|im_end|>', '<|im_start|>')
 
 _FALLBACK_ADVICE = "這餐整體攝取尚屬均衡，建議持續維持均衡飲食，適度增加蔬菜與全穀類以補充膳食纖維，並注意蛋白質與水分的攝取。"
+
+FOOD_NAME_MAP = {
+    'Apple': '蘋果', 'Banana': '香蕉', 'Mango': '芒果', 'Orange': '柳橙',
+    'Pineapple': '鳳梨', 'Watermelon': '西瓜', 'MiniBiscuits': '小餅乾',
+    'Snack': '零食', 'noodles': '麵條',
+}
+FOOD_CATEGORY_MAP = {
+    'Apple': '水果類', 'Banana': '水果類', 'Mango': '水果類', 'Orange': '水果類',
+    'Pineapple': '水果類', 'Watermelon': '水果類', 'MiniBiscuits': '點心類',
+    'Snack': '點心類', 'noodles': '主食類',
+}
 
 
 def _s2t(text: str) -> str:
@@ -111,6 +122,8 @@ def _extract_advice(stdout_bytes: bytes) -> str:
     else:
         advice = stdout.strip()
 
+    advice = advice.replace('assistant\n', '')
+
     for marker in _STOP_MARKERS:
         advice = advice.split(marker)[0]
     advice = advice.strip()
@@ -118,7 +131,7 @@ def _extract_advice(stdout_bytes: bytes) -> str:
     advice = _s2t(advice)
 
     advice = re.sub(
-        r'[^一-鿿　-〿＀-￯\w\s，。！？、：；%.,:;()「」『』…—～]',
+        r'[^一-鿿　-〿＀-￯\d\s，。！？、：；%.,:;()「」『』…—～]',
         '', advice
     )
     advice = advice.replace('end of text', '').strip()
@@ -156,15 +169,15 @@ def _ensure_prompt_cache() -> bool:
 
     try:
         subprocess.run([
-            '/home/ademo/llama-cli-new',
-            '-m', '/home/ademo/qwen2.5-0.5b-instruct-q4_0.gguf',
+            '/root/llama-b10964/llama-b10964/llama-completion',
+            '-m', '/root/models/qwen2.5-3b-instruct-q4_0.gguf',
             '-p', prefix,
             '-n', '1',
             '-t', str(N_THREADS),
             '-c', str(CONTEXT_SIZE),
-            '-no-cnv',
             '--prompt-cache', CACHE_PATH,
-        ], capture_output=True, timeout=240)
+            '-no-cnv',
+        ], capture_output=True, timeout=240, env={**os.environ, 'LD_LIBRARY_PATH': '/root/llama-b10964/llama-b10964'}, stdin=subprocess.DEVNULL)
         with open(CACHE_META_PATH, 'w') as f:
             f.write(prefix_hash)
         return os.path.exists(CACHE_PATH)
@@ -173,7 +186,7 @@ def _ensure_prompt_cache() -> bool:
 
 
 def get_llm_advice(detections, nutrition, recommendations, weight):
-    food_list = '、'.join([f"{k}{v}份" for k, v in detections.items()])
+    food_list = '、'.join([f"{FOOD_NAME_MAP.get(k, k)}{v}份" for k, v in detections.items()])
     cal = round(nutrition.get('calories', 0))
     cal_pct = round(recommendations.get('calories', {}).get('percentage', 0), 1)
     protein_pct = round(recommendations.get('protein', {}).get('percentage', 0), 1)
@@ -185,30 +198,33 @@ def get_llm_advice(detections, nutrition, recommendations, weight):
     carbs_desc = "不足" if carbs_pct < 20 else ("適中" if carbs_pct < 40 else "偏高")
     fiber_desc = "不足" if fiber_pct < 15 else "充足"
 
-    user_query = f"這餐吃了{food_list}，熱量{cal_desc}，蛋白質{protein_desc}，碳水{carbs_desc}，纖維{fiber_desc}。"
+    categories_eaten = sorted({FOOD_CATEGORY_MAP[k] for k in detections.keys() if k in FOOD_CATEGORY_MAP})
+    category_note = f"已攝取的食物類別：{'、'.join(categories_eaten)}，請勿再推薦同類別食物作為建議。" if categories_eaten else ""
+
+    user_query = f"這餐吃了{food_list}，熱量{cal_desc}，蛋白質{protein_desc}，碳水{carbs_desc}，纖維{fiber_desc}。{category_note}"
     prompt = _build_prompt(user_query)
 
     cache_ok = _ensure_prompt_cache()
 
     cmd = [
-        '/home/ademo/llama-cli-new',
-        '-m', '/home/ademo/qwen2.5-0.5b-instruct-q4_0.gguf',
+        '/root/llama-b10964/llama-b10964/llama-completion',
+        '-m', '/root/models/qwen2.5-3b-instruct-q4_0.gguf',
         '-p', prompt,
         '-n', str(GEN_MAX_TOKENS),
         '-t', str(N_THREADS),
         '-c', str(CONTEXT_SIZE),
-        '-no-cnv',
         '--temp', '0.4',
         '--top-p', '0.9',
         '--top-k', '40',
         '--repeat-penalty', '1.15',
     ]
+    cmd += ['-no-cnv']
     if cache_ok:
         cmd += ['--prompt-cache', CACHE_PATH, '--prompt-cache-ro']
 
     advice = ''
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT_SECONDS)
+        result = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT_SECONDS, env={**os.environ, 'LD_LIBRARY_PATH': '/root/llama-b10964/llama-b10964'}, stdin=subprocess.DEVNULL)
         advice = _extract_advice(result.stdout)
     except subprocess.TimeoutExpired as e:
         if e.stdout:
