@@ -168,7 +168,7 @@ def _ensure_prompt_cache() -> bool:
             pass
 
     try:
-        subprocess.run([
+        result = subprocess.run([
             '/root/llama-b10964/llama-b10964/llama-completion',
             '-m', '/root/models/qwen2.5-3b-instruct-q4_0.gguf',
             '-p', prefix,
@@ -178,14 +178,26 @@ def _ensure_prompt_cache() -> bool:
             '--prompt-cache', CACHE_PATH,
             '-no-cnv',
         ], capture_output=True, timeout=240, env={**os.environ, 'LD_LIBRARY_PATH': '/root/llama-b10964/llama-b10964'}, stdin=subprocess.DEVNULL)
-        with open(CACHE_META_PATH, 'w') as f:
-            f.write(prefix_hash)
-        return os.path.exists(CACHE_PATH)
+
+        if result.returncode == 0 and os.path.exists(CACHE_PATH):
+            with open(CACHE_META_PATH, 'w') as f:
+                f.write(prefix_hash)
+            return True
+
+        # 建置失敗或中途被中斷：清掉可能不完整的殘留檔案，避免下次被誤判為有效 cache
+        if os.path.exists(CACHE_PATH):
+            os.remove(CACHE_PATH)
+        if os.path.exists(CACHE_META_PATH):
+            os.remove(CACHE_META_PATH)
+        return False
     except Exception:
         return False
 
 
 def get_llm_advice(detections, nutrition, recommendations, weight):
+    if not detections:
+        return "這次沒有偵測到食物，請重新拍攝或確認照片中有清楚的食物內容。"
+
     food_list = '、'.join([f"{FOOD_NAME_MAP.get(k, k)}{v}份" for k, v in detections.items()])
     cal = round(nutrition.get('calories', 0))
     cal_pct = round(recommendations.get('calories', {}).get('percentage', 0), 1)
