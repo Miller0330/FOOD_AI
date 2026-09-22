@@ -33,6 +33,8 @@ detector = TFLiteDetector(
 with open('nutrition_data.json', 'r') as file:
     nutrition_data = json.load(file)
 
+NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fiber']
+
 # 初始化重量感測器
 try:
     weight_sensor_connected = initialize_weight_sensor()
@@ -97,29 +99,39 @@ def detect():
             else:
                 detection_counts[class_name] = 1
         
-        # 根據實際重量計算營養成分
-        if detection_counts and detection_weight > 0:
-            # 計算每個檢測到的食物項目的平均重量
-            total_items = sum(detection_counts.values())
-            average_weight_per_item = detection_weight / total_items
-            
-            print(f"總重量: {detection_weight}g, 總項目數: {total_items}, 平均每項重量: {average_weight_per_item:.1f}g")
-            
-            for class_name, count in detection_counts.items():
-                if class_name in nutrition_data:
-                    # 根據實際重量計算營養成分（假設nutrition_data中的數據是100g的營養成分）
-                    item_weight = average_weight_per_item * count
-                    weight_ratio = item_weight / 100  # 重量比例
-                    
-                    for nutrient, amount in nutrition_data[class_name].items():
-                        total_nutrition[nutrient] += amount * weight_ratio
-        else:
-            # 如果沒有重量數據，使用預設計算方式
+        # 每個偵測框的面積（用來按大小分配重量，而不是齊頭式平均）
+        def _bbox_area(det):
+            x_min, y_min, x_max, y_max = det['bbox']
+            return max(0, x_max - x_min) * max(0, y_max - y_min)
+
+        total_area = sum(_bbox_area(d) for d in detections)
+
+        if detections and detection_weight > 0:
+            # 有秤重數據：依每個偵測框佔全部框面積的比例分配總重量，
+            # 而不是不分物件大小地平均分配（例如一根香蕉跟一顆小餅乾框選面積差很多）
+            print(f"總重量: {detection_weight}g, 總項目數: {len(detections)}, 依偵測框面積比例分配")
+
             for detection in detections:
                 class_name = detection['class_name']
-                if class_name in nutrition_data:
-                    for nutrient, amount in nutrition_data[class_name].items():
-                        total_nutrition[nutrient] += amount
+                if class_name not in nutrition_data:
+                    continue
+                area = _bbox_area(detection)
+                item_weight = (detection_weight * area / total_area) if total_area > 0 else (detection_weight / len(detections))
+                weight_ratio = item_weight / 100  # nutrition_data 是每100g的數值
+
+                for nutrient in NUTRIENT_KEYS:
+                    total_nutrition[nutrient] += nutrition_data[class_name].get(nutrient, 0) * weight_ratio
+        else:
+            # 沒有秤重數據：用每種食物的典型單位重量估算，而不是把每個偵測到的物件都當成100g
+            for detection in detections:
+                class_name = detection['class_name']
+                if class_name not in nutrition_data:
+                    continue
+                default_weight = nutrition_data[class_name].get('default_weight_g', 100)
+                weight_ratio = default_weight / 100
+
+                for nutrient in NUTRIENT_KEYS:
+                    total_nutrition[nutrient] += nutrition_data[class_name].get(nutrient, 0) * weight_ratio
         
         # 計算飲食建議
         dietary_recommendations = calculate_diet_recommendations(total_nutrition)
@@ -182,8 +194,8 @@ def calculate_nutrition_with_weight():
         weight_ratio = weight / 100  # 重量比例
         
         calculated_nutrition = {}
-        for nutrient, value in base_nutrition.items():
-            calculated_nutrition[nutrient] = value * weight_ratio
+        for nutrient in NUTRIENT_KEYS:
+            calculated_nutrition[nutrient] = base_nutrition.get(nutrient, 0) * weight_ratio
         
         # 計算飲食建議
         dietary_recommendations = calculate_diet_recommendations(calculated_nutrition)
