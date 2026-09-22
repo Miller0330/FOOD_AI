@@ -1,4 +1,4 @@
-from LLMAdvisor import get_llm_advice, _ensure_prompt_cache
+from LLMAdvisor import get_llm_advice, _ensure_engine_running
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
 import cv2
@@ -206,6 +206,6 @@ def calculate_nutrition_with_weight():
 
 if __name__ == '__main__':
     print("正在準備 AI 模型，請稍候...")
-    _ensure_prompt_cache()
+    _ensure_engine_running()
     print("AI 模型準備完成")
     app.run(host='0.0.0.0', port=5000, debug=False)
