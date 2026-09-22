@@ -1,11 +1,11 @@
 {
-    "Apple": {"calories": 52, "protein": 0.3, "carbs": 13.8, "fiber": 2.4, "default_weight_g": 150},
-    "Banana": {"calories": 89, "protein": 1.1, "carbs": 22.8, "fiber": 2.6, "default_weight_g": 120},
-    "Orange": {"calories": 47, "protein": 0.9, "carbs": 11.8, "fiber": 2.4, "default_weight_g": 130},
-    "Mango": {"calories": 60, "protein": 0.8, "carbs": 14.9, "fiber": 1.6, "default_weight_g": 200},
-    "Watermelon": {"calories": 30, "protein": 0.6, "carbs": 7.6, "fiber": 0.4, "default_weight_g": 280},
-    "Pineapple": {"calories": 50, "protein": 0.5, "carbs": 13.1, "fiber": 1.4, "default_weight_g": 150},
-    "Snack": {"calories": 160, "protein": 2.5, "carbs": 21, "fiber": 1.0, "default_weight_g": 30},
-    "MiniBiscuits": {"calories": 120, "protein": 1.5, "carbs": 19, "fiber": 0.5, "default_weight_g": 20},
-    "noodles": {"calories": 138, "protein": 4.5, "carbs": 25, "fiber": 1.2, "default_weight_g": 250}
+    "Apple": {"calories": 57, "protein": 0.28, "fat": 0.15, "carbs": 13.6, "fiber": 2.4, "default_weight_g": 150, "usda_fdc_id": 168202, "usda_description": "Apples, raw, golden delicious, with skin"},
+    "Banana": {"calories": 89, "protein": 1.09, "fat": 0.33, "carbs": 22.8, "fiber": 2.6, "default_weight_g": 120, "usda_fdc_id": 173944, "usda_description": "Bananas, raw"},
+    "Orange": {"calories": 47, "protein": 0.94, "fat": 0.12, "carbs": 11.8, "fiber": 2.4, "default_weight_g": 130, "usda_fdc_id": 169097, "usda_description": "Oranges, raw, all commercial varieties"},
+    "Mango": {"calories": 60, "protein": 0.82, "fat": 0.38, "carbs": 15.0, "fiber": 1.6, "default_weight_g": 200, "usda_fdc_id": 169910, "usda_description": "Mangos, raw"},
+    "Watermelon": {"calories": 30, "protein": 0.61, "fat": 0.15, "carbs": 7.55, "fiber": 0.4, "default_weight_g": 280, "usda_fdc_id": 167765, "usda_description": "Watermelon, raw"},
+    "Pineapple": {"calories": 50, "protein": 0.54, "fat": 0.12, "carbs": 13.1, "fiber": 1.4, "default_weight_g": 150, "usda_fdc_id": 169124, "usda_description": "Pineapple, raw, all varieties"},
+    "Snack": {"calories": 539, "protein": 6.17, "fat": 33.4, "carbs": 57.3, "fiber": 4.0, "default_weight_g": 30, "usda_fdc_id": 167537, "usda_description": "Snacks, corn-based, extruded, chips, plain"},
+    "MiniBiscuits": {"calories": 489, "protein": 4.7, "fat": 23.1, "carbs": 65.6, "fiber": 0.9, "default_weight_g": 20, "usda_fdc_id": 172735, "usda_description": "Cookies, sugar, refrigerated dough, baked"},
+    "noodles": {"calories": 138, "protein": 4.54, "fat": 2.07, "carbs": 25.2, "fiber": 1.2, "default_weight_g": 250, "usda_fdc_id": 169732, "usda_description": "Noodles, egg, enriched, cooked"}
 }
