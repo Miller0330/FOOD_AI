@@ -46,6 +46,29 @@ except Exception as e:
     print(f"重量感測器初始化錯誤: {e}")
     weight_sensor_connected = False
 
+# 在模組載入時就把AI引擎叫醒（而不是放在 __main__ 區塊），
+# 這樣不管是直接執行 main.py 還是被 gunicorn 這類 WSGI伺服器 import，引擎都會啟動
+print("正在準備 AI 模型，請稍候...")
+_ensure_engine_running()
+print("AI 模型準備完成")
+
+MAX_KEPT_UPLOADS = 200  # 上傳資料夾最多保留幾個檔案（原圖+標註圖各算一個），避免長期執行把 /data 空間吃光
+
+def _cleanup_old_uploads():
+    folder = app.config['UPLOAD_FOLDER']
+    try:
+        files = [os.path.join(folder, f) for f in os.listdir(folder)]
+    except FileNotFoundError:
+        return
+    if len(files) <= MAX_KEPT_UPLOADS:
+        return
+    files.sort(key=lambda f: os.path.getmtime(f))
+    for f in files[:len(files) - MAX_KEPT_UPLOADS]:
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -152,7 +175,9 @@ def detect():
         result_data['llm_advice'] = llm_advice
         result_data['total_time'] = f"{time.time() - request_start:.1f}s"
 
-        return render_template('result.html', 
+        _cleanup_old_uploads()
+
+        return render_template('result.html',
                               result=result_data, 
                               nutrition_data=nutrition_data,
                               timestamp=timestamp)
@@ -219,7 +244,4 @@ def calculate_nutrition_with_weight():
 
 
 if __name__ == '__main__':
-    print("正在準備 AI 模型，請稍候...")
-    _ensure_engine_running()
-    print("AI 模型準備完成")
     app.run(host='0.0.0.0', port=5000, debug=False)
