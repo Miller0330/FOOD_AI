@@ -220,25 +220,74 @@
                             <div class="col-md-6 mb-4">
                                 <div class="card h-100">
                                     <div class="card-body">
-                                        <h6 class="card-title">總計營養成分</h6>
+                                        <h6 class="card-title">營養素攝取比例</h6>
                                         <table class="table table-sm">
                                             <tr>
-                                                <th>熱量</th>
-                                                <td>{{ result.nutrition.calories|round|int }} 大卡</td>
+                                                <th>營養素</th>
+                                                <th>已攝取</th>
+                                                <th>建議量</th>
+                                                <th>達成率</th>
                                             </tr>
                                             <tr>
-                                                <th>蛋白質</th>
-                                                <td>{{ result.nutrition.protein|round(1) }} 克</td>
+                                                <td>熱量</td>
+                                                <td>{{ result.recommendations.calories.consumed|round|int }} 大卡</td>
+                                                <td>{{ result.recommendations.calories.recommended|int }} 大卡</td>
+                                                <td>
+                                                    <div class="progress" style="height: 10px;">
+                                                        <div class="progress-bar" role="progressbar"
+                                                             aria-valuenow="{{ result.recommendations.calories.percentage }}"
+                                                             aria-valuemin="0" aria-valuemax="100">
+                                                        </div>
+                                                    </div>
+                                                    <small>{{ result.recommendations.calories.percentage }}%</small>
+                                                </td>
                                             </tr>
                                             <tr>
-                                                <th>碳水化合物</th>
-                                                <td>{{ result.nutrition.carbs|round(1) }} 克</td>
+                                                <td>蛋白質</td>
+                                                <td>{{ result.recommendations.protein.consumed|round(1) }} 克</td>
+                                                <td>{{ result.recommendations.protein.recommended|int }} 克</td>
+                                                <td>
+                                                    <div class="progress" style="height: 10px;">
+                                                        <div class="progress-bar" role="progressbar"
+                                                             aria-valuenow="{{ result.recommendations.protein.percentage }}"
+                                                             aria-valuemin="0" aria-valuemax="100">
+                                                        </div>
+                                                    </div>
+                                                    <small>{{ result.recommendations.protein.percentage }}%</small>
+                                                </td>
                                             </tr>
                                             <tr>
-                                                <th>膳食纖維</th>
-                                                <td>{{ result.nutrition.fiber|round(1) }} 克</td>
+                                                <td>碳水化合物</td>
+                                                <td>{{ result.recommendations.carbs.consumed|round(1) }} 克</td>
+                                                <td>{{ result.recommendations.carbs.recommended|int }} 克</td>
+                                                <td>
+                                                    <div class="progress" style="height: 10px;">
+                                                        <div class="progress-bar" role="progressbar"
+                                                             aria-valuenow="{{ result.recommendations.carbs.percentage }}"
+                                                             aria-valuemin="0" aria-valuemax="100">
+                                                        </div>
+                                                    </div>
+                                                    <small>{{ result.recommendations.carbs.percentage }}%</small>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>膳食纖維</td>
+                                                <td>{{ result.recommendations.fiber.consumed|round(1) }} 克</td>
+                                                <td>{{ result.recommendations.fiber.recommended|int }} 克</td>
+                                                <td>
+                                                    <div class="progress" style="height: 10px;">
+                                                        <div class="progress-bar" role="progressbar"
+                                                             aria-valuenow="{{ result.recommendations.fiber.percentage }}"
+                                                             aria-valuemin="0" aria-valuemax="100">
+                                                        </div>
+                                                    </div>
+                                                    <small>{{ result.recommendations.fiber.percentage }}%</small>
+                                                </td>
                                             </tr>
                                         </table>
+                                        <div class="small text-muted">
+                                            <p class="mb-0">* 建議每日攝取量基於一般成人標準，實際需求可能因個人差異而不同。</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -289,108 +338,6 @@
                     </div>
                 </div>
                 
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">每日飲食建議</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-4">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <h6 class="card-title">營養素攝取比例</h6>
-                                        <table class="table table-sm">
-                                            <tr>
-                                                <th>營養素</th>
-                                                <th>已攝取</th>
-                                                <th>建議量</th>
-                                                <th>達成率</th>
-                                            </tr>
-                                            <tr>
-                                                <td>熱量</td>
-                                                <td>{{ result.recommendations.calories.consumed|round|int }} 大卡</td>
-                                                <td>{{ result.recommendations.calories.recommended|int }} 大卡</td>
-                                                <td>
-                                                    <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.calories.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
-                                                    </div>
-                                                    <small>{{ result.recommendations.calories.percentage }}%</small>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>蛋白質</td>
-                                                <td>{{ result.recommendations.protein.consumed|round(1) }} 克</td>
-                                                <td>{{ result.recommendations.protein.recommended|int }} 克</td>
-                                                <td>
-                                                    <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.protein.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
-                                                    </div>
-                                                    <small>{{ result.recommendations.protein.percentage }}%</small>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>碳水化合物</td>
-                                                <td>{{ result.recommendations.carbs.consumed|round(1) }} 克</td>
-                                                <td>{{ result.recommendations.carbs.recommended|int }} 克</td>
-                                                <td>
-                                                    <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.carbs.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
-                                                    </div>
-                                                    <small>{{ result.recommendations.carbs.percentage }}%</small>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>膳食纖維</td>
-                                                <td>{{ result.recommendations.fiber.consumed|round(1) }} 克</td>
-                                                <td>{{ result.recommendations.fiber.recommended|int }} 克</td>
-                                                <td>
-                                                    <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.fiber.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
-                                                    </div>
-                                                    <small>{{ result.recommendations.fiber.percentage }}%</small>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-4">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <h6 class="card-title">飲食建議</h6>
-                                        {% if result.recommendations.advice %}
-                                            <ul class="list-group">
-                                                {% for advice in result.recommendations.advice %}
-                                                    <li class="list-group-item">{{ advice }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% else %}
-                                            <div class="alert alert-success">
-                                                您的飲食營養均衡，繼續保持！
-                                            </div>
-                                        {% endif %}
-                                        
-                                        <div class="mt-3 small text-muted">
-                                            <p>* 建議每日攝取量基於一般成人標準，實際需求可能因個人差異而不同。</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 {% endif %}
                 
                 <div class="text-center">
