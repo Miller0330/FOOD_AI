@@ -64,6 +64,7 @@ def detect():
     print(f"辨識時重量: {detection_weight}g")
     
     if file:
+        request_start = time.time()
         # 儲存上傳的檔案
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         filename = secure_filename(f"{timestamp}_{file.filename}")
@@ -149,7 +150,8 @@ def detect():
         print("開始呼叫LLM...")
         llm_advice = get_llm_advice(detection_counts, total_nutrition, dietary_recommendations, detection_weight)
         result_data['llm_advice'] = llm_advice
-        
+        result_data['total_time'] = f"{time.time() - request_start:.1f}s"
+
         return render_template('result.html', 
                               result=result_data, 
                               nutrition_data=nutrition_data,
