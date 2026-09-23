@@ -139,6 +139,16 @@ def detect():
         total_area = sum(_bbox_area(d) for d in confident_detections)
         detections = confident_detections
 
+        # 每個食物類別的實際明細（重量、熱量），跟下面 total_nutrition 用同一套邏輯算，
+        # 讓網頁上「食物明細」表格跟「營養素攝取比例」的數字保證對得起來
+        # （舊版食物明細是模板自己另外用 每100g熱量*數量 重算一次，跟這裡的加權結果對不上）
+        food_breakdown = {}
+
+        def _add_breakdown(class_name, item_weight):
+            b = food_breakdown.setdefault(class_name, {'weight_g': 0.0, 'calories': 0.0})
+            b['weight_g'] += item_weight
+            b['calories'] += nutrition_data[class_name].get('calories', 0) * (item_weight / 100)
+
         if detections and detection_weight > 0:
             # 有秤重數據：依每個偵測框佔全部框面積的比例分配總重量，
             # 而不是不分物件大小地平均分配（例如一根香蕉跟一顆小餅乾框選面積差很多）
@@ -154,6 +164,7 @@ def detect():
 
                 for nutrient in NUTRIENT_KEYS:
                     total_nutrition[nutrient] += nutrition_data[class_name].get(nutrient, 0) * weight_ratio
+                _add_breakdown(class_name, item_weight)
         else:
             # 沒有秤重數據：用每種食物的典型單位重量估算，而不是把每個偵測到的物件都當成100g
             for detection in detections:
@@ -165,13 +176,15 @@ def detect():
 
                 for nutrient in NUTRIENT_KEYS:
                     total_nutrition[nutrient] += nutrition_data[class_name].get(nutrient, 0) * weight_ratio
-        
+                _add_breakdown(class_name, default_weight)
+
         # 計算飲食建議
         dietary_recommendations = calculate_diet_recommendations(total_nutrition)
-        
+
         # 準備回應資料
         result_data = {
             'detections': detection_counts,
+            'food_breakdown': food_breakdown,
             'result_image': f"/static/uploads/{result_filename}",
             'inference_time': f"{inference_time*1000:.2f}ms",
             'total_items': len(detections),

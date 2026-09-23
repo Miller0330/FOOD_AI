@@ -332,14 +332,8 @@
                                                     <tr>
                                                         <td>{{ class_name }}</td>
                                                         <td>{{ count }} 個</td>
-                                                        <td>
-                                                            {% if result.detection_weight > 0 %}
-                                                                {{ ((result.detection_weight / result.detections.values()|sum) * count)|round(1) }}g
-                                                            {% else %}
-                                                                標準份量
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>{{ (nutrition_data[class_name].calories * count)|round|int }} 大卡</td>
+                                                        <td>{{ result.food_breakdown[class_name].weight_g|round(1) }}g</td>
+                                                        <td>{{ result.food_breakdown[class_name].calories|round|int }} 大卡</td>
                                                     </tr>
                                                     {% endfor %}
                                                 </tbody>
