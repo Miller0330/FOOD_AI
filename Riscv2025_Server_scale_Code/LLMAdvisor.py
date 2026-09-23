@@ -107,11 +107,15 @@ def get_llm_advice(detections, nutrition, recommendations, weight):
     categories_eaten = sorted({FOOD_CATEGORY_MAP[k] for k in detections.keys() if k in FOOD_CATEGORY_MAP})
     category_note = f"已攝取的食物類別：{'、'.join(categories_eaten)}，請勿再推薦同類別食物作為建議。" if categories_eaten else ""
 
-    # 限制長度/格式的指示直接寫進使用者問題本身（-p system prompt 這個引擎版本不生效，已實測確認）
+    # 限制長度/格式的指示直接寫進使用者問題本身（-p system prompt 這個引擎版本不生效，已實測確認）。
+    # 明確要求評論「這餐吃的東西」本身，不然像蘋果、香蕉這種營養屬性很像的食物，
+    # 分類結果(偏低/不足/適中)幾乎一樣，模型很容易套同一套通用建議範本、完全不提到實際吃了什麼。
     query = (
-        f"這餐吃了{food_list}，熱量{cal_desc}，蛋白質{protein_desc}，"
+        f"使用者這餐吃了{food_list}。這餐的營養分析：熱量{cal_desc}，蛋白質{protein_desc}，"
         f"碳水{carbs_desc}，纖維{fiber_desc}，脂肪{fat_desc}。{category_note}"
-        f"你是專業營養師，請用繁體中文回答，規定只能寫1到2句話，不超過100個字，"
+        f"你是專業營養師，請針對使用者「這餐吃的{food_list}」給予簡短評論，"
+        f"回答中必須提到{food_list}，再視情況給建議，"
+        f"用繁體中文回答，規定只能寫1到2句話，不超過100個字，"
         f"禁止使用條列、標題、表格、星號。"
     )
 
