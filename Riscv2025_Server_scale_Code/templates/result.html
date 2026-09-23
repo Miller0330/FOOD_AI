@@ -203,6 +203,11 @@
                                     未檢測到任何食物，請嘗試不同的照片或角度。
                                 </div>
                                 {% endif %}
+                                {% if result.low_confidence_count %}
+                                <div class="alert alert-warning small mb-0" role="alert">
+                                    另外有 {{ result.low_confidence_count }} 個信心度較低的偵測結果未列入營養計算，建議重新拍攝以提高準確度。
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -285,6 +290,20 @@
                                                         </div>
                                                     </div>
                                                     <small>{{ result.recommendations.fiber.percentage }}%</small>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>脂肪</td>
+                                                <td>{{ result.recommendations.fat.consumed|round(1) }} 克</td>
+                                                <td>{{ result.recommendations.fat.recommended|int }} 克</td>
+                                                <td>
+                                                    <div class="progress" style="height: 10px;">
+                                                        <div class="progress-bar" role="progressbar"
+                                                             aria-valuenow="{{ result.recommendations.fat.percentage }}"
+                                                             aria-valuemin="0" aria-valuemax="100">
+                                                        </div>
+                                                    </div>
+                                                    <small>{{ result.recommendations.fat.percentage }}%</small>
                                                 </td>
                                             </tr>
                                         </table>

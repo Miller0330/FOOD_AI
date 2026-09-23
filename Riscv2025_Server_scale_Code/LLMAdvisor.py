@@ -96,11 +96,13 @@ def get_llm_advice(detections, nutrition, recommendations, weight):
     protein_pct = round(recommendations.get('protein', {}).get('percentage', 0), 1)
     carbs_pct = round(recommendations.get('carbs', {}).get('percentage', 0), 1)
     fiber_pct = round(recommendations.get('fiber', {}).get('percentage', 0), 1)
+    fat_pct = round(recommendations.get('fat', {}).get('percentage', 0), 1)
 
     cal_desc = "偏低" if cal_pct < 25 else ("適中" if cal_pct < 40 else "偏高")
     protein_desc = "不足" if protein_pct < 20 else ("適中" if protein_pct < 40 else "充足")
     carbs_desc = "不足" if carbs_pct < 20 else ("適中" if carbs_pct < 40 else "偏高")
     fiber_desc = "不足" if fiber_pct < 15 else "充足"
+    fat_desc = "偏低" if fat_pct < 20 else ("適中" if fat_pct < 40 else "偏高")
 
     categories_eaten = sorted({FOOD_CATEGORY_MAP[k] for k in detections.keys() if k in FOOD_CATEGORY_MAP})
     category_note = f"已攝取的食物類別：{'、'.join(categories_eaten)}，請勿再推薦同類別食物作為建議。" if categories_eaten else ""
@@ -108,7 +110,7 @@ def get_llm_advice(detections, nutrition, recommendations, weight):
     # 限制長度/格式的指示直接寫進使用者問題本身（-p system prompt 這個引擎版本不生效，已實測確認）
     query = (
         f"這餐吃了{food_list}，熱量{cal_desc}，蛋白質{protein_desc}，"
-        f"碳水{carbs_desc}，纖維{fiber_desc}。{category_note}"
+        f"碳水{carbs_desc}，纖維{fiber_desc}，脂肪{fat_desc}。{category_note}"
         f"你是專業營養師，請用繁體中文回答，規定只能寫1到2句話，不超過100個字，"
         f"禁止使用條列、標題、表格、星號。"
     )
@@ -135,12 +137,13 @@ if __name__ == '__main__':
     import time
 
     demo_detections = {'Apple': 1}
-    demo_nutrition = {'calories': 52, 'protein': 0.3, 'carbs': 13.8, 'fiber': 2.4}
+    demo_nutrition = {'calories': 52, 'protein': 0.3, 'carbs': 13.8, 'fiber': 2.4, 'fat': 0.15}
     demo_recommendations = {
         'calories': {'percentage': 2.6},
         'protein': {'percentage': 0.5},
         'carbs': {'percentage': 4.6},
         'fiber': {'percentage': 9.6},
+        'fat': {'percentage': 0.2},
     }
     t0 = time.time()
     print(get_llm_advice(demo_detections, demo_nutrition, demo_recommendations, 100))

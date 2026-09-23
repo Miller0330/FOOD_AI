@@ -33,7 +33,9 @@ detector = TFLiteDetector(
 with open('nutrition_data.json', 'r') as file:
     nutrition_data = json.load(file)
 
-NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fiber']
+NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fiber', 'fat']
+MIN_CONFIDENCE_FOR_NUTRITION = 0.5  # 偵測器本身的門檻只有0.25(為了不漏掉東西)，
+                                     # 但信心值太低的偵測不該被算進營養總量，容易誤導使用者
 
 # 初始化重量感測器
 try:
@@ -112,23 +114,28 @@ def detect():
         result_filepath = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
         cv2.imwrite(result_filepath, result_img)
         
+        # 信心值太低的偵測不列入營養計算（但仍會畫在標註圖上），避免誤導使用者
+        low_confidence_count = sum(1 for d in detections if d['confidence'] < MIN_CONFIDENCE_FOR_NUTRITION)
+        confident_detections = [d for d in detections if d['confidence'] >= MIN_CONFIDENCE_FOR_NUTRITION]
+
         # 按類別計數檢測結果
         detection_counts = {}
-        total_nutrition = {'calories': 0, 'protein': 0, 'carbs': 0, 'fiber': 0}
-        
-        for detection in detections:
+        total_nutrition = {'calories': 0, 'protein': 0, 'carbs': 0, 'fiber': 0, 'fat': 0}
+
+        for detection in confident_detections:
             class_name = detection['class_name']
             if class_name in detection_counts:
                 detection_counts[class_name] += 1
             else:
                 detection_counts[class_name] = 1
-        
+
         # 每個偵測框的面積（用來按大小分配重量，而不是齊頭式平均）
         def _bbox_area(det):
             x_min, y_min, x_max, y_max = det['bbox']
             return max(0, x_max - x_min) * max(0, y_max - y_min)
 
-        total_area = sum(_bbox_area(d) for d in detections)
+        total_area = sum(_bbox_area(d) for d in confident_detections)
+        detections = confident_detections
 
         if detections and detection_weight > 0:
             # 有秤重數據：依每個偵測框佔全部框面積的比例分配總重量，
@@ -166,6 +173,7 @@ def detect():
             'result_image': f"/static/uploads/{result_filename}",
             'inference_time': f"{inference_time*1000:.2f}ms",
             'total_items': len(detections),
+            'low_confidence_count': low_confidence_count,
             'detection_weight': detection_weight,  # 辨識時的重量
             'nutrition': total_nutrition,
             'recommendations': dietary_recommendations
