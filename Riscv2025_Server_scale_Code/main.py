@@ -109,8 +109,10 @@ def detect():
         # 在圖像上繪製檢測結果
         result_img = detector.draw_detections(img, detections)
         
-        # 儲存結果圖像
-        result_filename = f"result_{filename}"
+        # 儲存結果圖像（一律存成.jpg，不要照抄原始上傳檔名的副檔名——
+        # 例如手機/Windows複製圖片常見的.jfif，cv2.imwrite不認得這個副檔名會直接噴錯）
+        result_stem = os.path.splitext(filename)[0]
+        result_filename = f"result_{result_stem}.jpg"
         result_filepath = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
         cv2.imwrite(result_filepath, result_img)
         
