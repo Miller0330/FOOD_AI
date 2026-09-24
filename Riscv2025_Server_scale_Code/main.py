@@ -8,6 +8,9 @@ import base64
 from datetime import datetime
 import time
 import json
+import uuid
+import threading
+import collections
 
 # 導入.py檔案
 from Detector import TFLiteDetector
@@ -92,6 +95,38 @@ def _cleanup_old_uploads():
             os.remove(f)
         except OSError:
             pass
+
+# LLM建議要好幾秒才生成完，不讓它擋住整個結果頁：結果頁先渲染，建議由頁面載入完成後
+# 再向 /api/advice/<token> 非同步取得。這裡暫存「等待生成」的參數（重啟即清空，無所謂）。
+MAX_PENDING_ADVICE = 50
+_pending_advice = collections.OrderedDict()
+_pending_lock = threading.Lock()
+
+def _attach_advice(result_data, detection_counts, total_nutrition, recommendations, weight,
+                   name_map=None, category_map=None):
+    if not detection_counts:
+        # 沒偵測到食物時建議是固定文字，不需要動用LLM，直接內嵌
+        result_data['llm_advice'] = get_llm_advice(detection_counts, total_nutrition, recommendations, weight)
+        return
+    token = uuid.uuid4().hex
+    with _pending_lock:
+        _pending_advice[token] = (detection_counts, total_nutrition, recommendations, weight, name_map, category_map)
+        while len(_pending_advice) > MAX_PENDING_ADVICE:
+            _pending_advice.popitem(last=False)
+    result_data['advice_token'] = token
+
+@app.route('/api/advice/<token>')
+def get_advice(token):
+    with _pending_lock:
+        params = _pending_advice.pop(token, None)
+    if params is None:
+        return jsonify({'success': False, 'error': '建議已過期，請重新辨識'}), 404
+    detection_counts, total_nutrition, recommendations, weight, name_map, category_map = params
+    t0 = time.time()
+    print("開始呼叫LLM...")
+    advice = get_llm_advice(detection_counts, total_nutrition, recommendations, weight,
+                            name_map=name_map, category_map=category_map)
+    return jsonify({'success': True, 'advice': advice, 'seconds': round(time.time() - t0, 1)})
 
 @app.route('/')
 def index():
@@ -215,9 +250,7 @@ def detect():
             'nutrition': total_nutrition,
             'recommendations': dietary_recommendations
         }
-        print("開始呼叫LLM...")
-        llm_advice = get_llm_advice(detection_counts, total_nutrition, dietary_recommendations, detection_weight)
-        result_data['llm_advice'] = llm_advice
+        _attach_advice(result_data, detection_counts, total_nutrition, dietary_recommendations, detection_weight)
         result_data['total_time'] = f"{time.time() - request_start:.1f}s"
 
         _cleanup_old_uploads()
@@ -316,9 +349,8 @@ def detect100():
             'recommendations': dietary_recommendations
         }
 
-        llm_advice = get_llm_advice(detection_counts, total_nutrition, dietary_recommendations, detection_weight,
-                                     name_map=name_map_100, category_map=category_map_100)
-        result_data['llm_advice'] = llm_advice
+        _attach_advice(result_data, detection_counts, total_nutrition, dietary_recommendations, detection_weight,
+                       name_map=name_map_100, category_map=category_map_100)
         result_data['total_time'] = f"{time.time() - request_start:.1f}s"
 
         _cleanup_old_uploads()

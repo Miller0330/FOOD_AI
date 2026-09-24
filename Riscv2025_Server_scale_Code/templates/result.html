@@ -350,7 +350,14 @@
                         <h5 class="mb-0">AI 營養師建議</h5>
                     </div>
                     <div class="card-body">
+                        {% if result.advice_token %}
+                        <p class="mb-0 fs-5 text-muted" id="advice-text" data-token="{{ result.advice_token }}">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>AI 營養師分析中，請稍候…
+                        </p>
+                        <div class="small text-muted mt-1" id="advice-time"></div>
+                        {% else %}
                         <p class="mb-0 fs-5">{{ result.llm_advice if result.llm_advice else "正在分析中..." }}</p>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -428,6 +435,28 @@
         // 上傳/等首個位元組(TTFB)、還是頁面本身下載、還是CSS/JS/圖片這些子資源。
         // 必須等 load 事件（而不是 DOMContentLoaded）才讀 loadEventEnd，
         // 不然這個值還沒寫入、會是0，算出來的時間會變成負數。
+        // AI建議非同步取得：必須等 load（結果圖等資源都載完）才發請求，
+        // 因為伺服器單一worker，LLM請求會佔住worker，太早發會讓結果圖排在後面等。
+        window.addEventListener('load', function() {
+            const adviceEl = document.getElementById('advice-text');
+            if (!adviceEl) return;
+            fetch('/api/advice/' + adviceEl.dataset.token)
+                .then(r => r.json())
+                .then(data => {
+                    adviceEl.classList.remove('text-muted');
+                    if (data.success) {
+                        adviceEl.textContent = data.advice;
+                        document.getElementById('advice-time').textContent = `AI 建議生成時間: ${data.seconds}s`;
+                    } else {
+                        adviceEl.textContent = data.error || '建議取得失敗';
+                    }
+                })
+                .catch(() => {
+                    adviceEl.classList.remove('text-muted');
+                    adviceEl.textContent = 'AI 建議取得失敗，請重新辨識';
+                });
+        });
+
         window.addEventListener('load', function() {
             try {
                 const nav = performance.getEntriesByType('navigation')[0];
