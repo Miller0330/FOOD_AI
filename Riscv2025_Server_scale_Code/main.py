@@ -1,4 +1,4 @@
-from LLMAdvisor import get_llm_advice, _ensure_engine_running
+from LLMAdvisor import get_llm_advice, _ensure_engine_running, FOOD_NAME_MAP
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
 import cv2
@@ -14,7 +14,7 @@ import collections
 
 # 導入.py檔案
 from Detector import TFLiteDetector
-from Detector100 import UECFood100Detector
+from Detector100 import UECFood100Detector, IMG_SIZE as DETECTOR100_IMG_SIZE
 from Calculate import calculate_diet_recommendations
 from WeightSensor import initialize_weight_sensor, get_weight_data
 app = Flask(__name__)
@@ -128,6 +128,33 @@ def get_advice(token):
                             name_map=name_map, category_map=category_map)
     return jsonify({'success': True, 'advice': advice, 'seconds': round(time.time() - t0, 1)})
 
+def _build_boxes(detections, img_w, img_h, label_map, min_conf):
+    """轉成網頁疊圖用的百分比座標。標註不再燒進圖片：中文字由瀏覽器畫，也不對使用者顯示信心度。"""
+    def pct(v, total):
+        return round(max(0.0, min(100.0, v / total * 100)), 2)
+    boxes = []
+    for d in detections:
+        x1, y1, x2, y2 = d['bbox']
+        boxes.append({
+            'label': label_map.get(d['class_name'], d['class_name']),
+            'confidence': round(d['confidence'], 2),
+            'counted': d['confidence'] >= min_conf,
+            'x': pct(x1, img_w), 'y': pct(y1, img_h),
+            'w': pct(x2 - x1, img_w), 'h': pct(y2 - y1, img_h),
+        })
+    return boxes
+
+
+def _build_portion_items(food_breakdown, counts, nutrition_src, name_of):
+    """給網頁份量滑桿用：每種食物的原始重量與每100g營養值，前端即時重算不必重新辨識。"""
+    return [{
+        'name': name_of(cn),
+        'count': counts.get(cn, 1),
+        'weight_g': round(b['weight_g'], 1),
+        'per100': {k: nutrition_src[cn].get(k, 0) for k in NUTRIENT_KEYS},
+    } for cn, b in food_breakdown.items()]
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -163,19 +190,17 @@ def detect():
         detections = detector.detect(img)
         inference_time = time.time() - start_time
         
-        # 在圖像上繪製檢測結果
-        result_img = detector.draw_detections(img, detections)
-        
-        # 儲存結果圖像（一律存成.jpg，不要照抄原始上傳檔名的副檔名——
-        # 例如手機/Windows複製圖片常見的.jfif，cv2.imwrite不認得這個副檔名會直接噴錯）
+        # 存一份乾淨的檢視用圖（不燒框線與文字，框線由網頁疊上去）。一律存成.jpg，
+        # 不要照抄原始上傳檔名的副檔名——手機/Windows常見的.jfif，cv2.imwrite不認得會直接噴錯
         result_stem = os.path.splitext(filename)[0]
         result_filename = f"result_{result_stem}.jpg"
         result_filepath = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
-        cv2.imwrite(result_filepath, result_img)
+        cv2.imwrite(result_filepath, img)
         
         # 信心值太低的偵測不列入營養計算（但仍會畫在標註圖上），避免誤導使用者
         low_confidence_count = sum(1 for d in detections if d['confidence'] < MIN_CONFIDENCE_FOR_NUTRITION)
         confident_detections = [d for d in detections if d['confidence'] >= MIN_CONFIDENCE_FOR_NUTRITION]
+        boxes = _build_boxes(detections, img.shape[1], img.shape[0], FOOD_NAME_MAP, MIN_CONFIDENCE_FOR_NUTRITION)
 
         # 按類別計數檢測結果
         detection_counts = {}
@@ -242,6 +267,9 @@ def detect():
         result_data = {
             'detections': detection_counts,
             'food_breakdown': food_breakdown,
+            'portion_items': _build_portion_items(food_breakdown, detection_counts, nutrition_data,
+                                                  lambda c: FOOD_NAME_MAP.get(c, c)),
+            'boxes': boxes,
             'result_image': f"/static/uploads/{result_filename}",
             'inference_time': f"{inference_time*1000:.2f}ms",
             'total_items': len(detections),
@@ -258,6 +286,7 @@ def detect():
         return render_template('result.html',
                               result=result_data, 
                               nutrition_data=nutrition_data,
+                              name_map=FOOD_NAME_MAP,
                               timestamp=timestamp)
 
 @app.route('/detect100', methods=['POST'])
@@ -283,12 +312,18 @@ def detect100():
         result_filename = f"result_{result_stem}.jpg"
         result_filepath = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
 
+        view_img = cv2.imread(filepath)
+        if view_img is None:
+            return jsonify({'error': '無法處理圖像'})
+        cv2.imwrite(result_filepath, view_img)  # 乾淨的檢視圖，框線與中文標籤由網頁疊上去
+
         start_time = time.time()
-        detections = detector100.detect(filepath, output_path=result_filepath)
+        detections = detector100.detect(filepath)
         inference_time = time.time() - start_time
 
         low_confidence_count = sum(1 for d in detections if d['confidence'] < MIN_CONFIDENCE_FOR_NUTRITION_100)
         confident_detections = [d for d in detections if d['confidence'] >= MIN_CONFIDENCE_FOR_NUTRITION_100]
+        boxes = _build_boxes(detections, DETECTOR100_IMG_SIZE, DETECTOR100_IMG_SIZE, name_map_100, MIN_CONFIDENCE_FOR_NUTRITION_100)
 
         detection_counts = {}
         total_nutrition = {'calories': 0, 'protein': 0, 'carbs': 0, 'fiber': 0, 'fat': 0}
@@ -333,6 +368,9 @@ def detect100():
 
         dietary_recommendations = calculate_diet_recommendations(total_nutrition)
 
+        portion_items = _build_portion_items(food_breakdown, detection_counts, nutrition_data_100,
+                                             lambda c: name_map_100.get(c, c))
+
         # 表格顯示用中文名（食物明細/攝取比例），detection_counts本身仍用英文key對應nutrition_data_100
         detection_counts_display = {name_map_100.get(k, k): v for k, v in detection_counts.items()}
         food_breakdown_display = {name_map_100.get(k, k): v for k, v in food_breakdown.items()}
@@ -340,6 +378,8 @@ def detect100():
         result_data = {
             'detections': detection_counts_display,
             'food_breakdown': food_breakdown_display,
+            'portion_items': portion_items,
+            'boxes': boxes,
             'result_image': f"/static/uploads/{result_filename}",
             'inference_time': f"{inference_time*1000:.2f}ms",
             'total_items': len(confident_detections),
@@ -358,6 +398,7 @@ def detect100():
         return render_template('result.html',
                               result=result_data,
                               nutrition_data=nutrition_data_100,
+                              name_map={},
                               timestamp=timestamp)
 
 
