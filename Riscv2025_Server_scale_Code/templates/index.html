@@ -177,7 +177,7 @@
                     <div class="card-body">
                         <div class="tab-content">
                             <div class="tab-pane fade show active" id="tab-fruit">
-                                <form action="/detect" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="return submitWithWeight(this)">
+                                <form action="/detect" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="submitWithWeight(this, event)">
                                     <input type="hidden" class="weight-input" name="weight" value="0">
                                     <div class="file-upload">
                                         <label class="upload-label upload-area">
@@ -198,7 +198,7 @@
                             </div>
                             <div class="tab-pane fade" id="tab-meal">
                                 <p class="text-muted small">測試版：使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別，準確度仍在調校中。</p>
-                                <form action="/detect100" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="return submitWithWeight(this)">
+                                <form action="/detect100" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="submitWithWeight(this, event)">
                                     <input type="hidden" class="weight-input" name="weight" value="0">
                                     <div class="file-upload">
                                         <label class="upload-label upload-area">
@@ -295,7 +295,46 @@
                 });
         }
         
-        function submitWithWeight(form) {
+        // 手機拍的原圖常常好幾MB，上傳這段時間完全不會反映在伺服器的「運算時間」統計裡，
+        // 卻是使用者感受到的等待中很大一塊——上傳前先在瀏覽器端縮小，大幅減少要傳的資料量。
+        // 偵測模型本身輸入只有416px，遠超過這個尺寸的原圖對辨識準確度沒有幫助，縮小是安全的。
+        function resizeImageInput(input, maxDim, quality) {
+            return new Promise((resolve) => {
+                const file = input.files[0];
+                if (!file || file.size < 400 * 1024) return resolve(); // 小檔案不用處理
+
+                const objectUrl = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    let { width, height } = img;
+                    if (Math.max(width, height) > maxDim) {
+                        const scale = maxDim / Math.max(width, height);
+                        width = Math.round(width * scale);
+                        height = Math.round(height * scale);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => {
+                        URL.revokeObjectURL(objectUrl);
+                        if (!blob) return resolve();
+                        const resizedFile = new File([blob], 'upload.jpg', { type: 'image/jpeg' });
+                        const dt = new DataTransfer();
+                        dt.items.add(resizedFile);
+                        input.files = dt.files;
+                        console.log(`圖片縮圖: ${(file.size/1024).toFixed(0)}KB -> ${(blob.size/1024).toFixed(0)}KB`);
+                        resolve();
+                    }, 'image/jpeg', quality);
+                };
+                img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(); }; // 縮圖失敗就照原圖傳，不擋使用者
+                img.src = objectUrl;
+            });
+        }
+
+        async function submitWithWeight(form, event) {
+            event.preventDefault(); // 先擋下瀏覽器預設的立即送出，等縮圖做完才真正送出
+
             // 直接使用當前顯示的重量值
             form.querySelector('.weight-input').value = currentWeight;
             console.log('辨識時重量:', currentWeight + 'g');
@@ -309,14 +348,17 @@
             // 送出後立刻鎖住按鈕、顯示處理中，避免使用者以為沒反應而重複點擊
             // （伺服器單一worker一次只能處理一個請求，重複點擊會讓兩次請求排隊疊加等待時間）
             const submitBtn = form.querySelector('button[type=submit]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>辨識中，請稍候…';
-            }
             const cancelBtn = form.querySelector('button[type=button]');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '處理圖片中…'; }
             if (cancelBtn) cancelBtn.disabled = true;
 
-            return true; // 繼續提交表單
+            const fileInput = form.querySelector('.file-input');
+            await resizeImageInput(fileInput, 1280, 0.85);
+
+            if (submitBtn) {
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>辨識中，請稍候…';
+            }
+            HTMLFormElement.prototype.submit.call(form); // 繞過onsubmit，直接真正送出表單
         }
         
         // 頁面載入時初始化，但不自動讀取重量
