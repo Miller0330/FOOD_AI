@@ -11,15 +11,15 @@
     "source": "usda:Rice, white, glutinous, unenriched, cooked"
   },
   "UEC002_鰻魚飯": {
-    "calories": 236,
-    "protein": 23.6,
-    "carbs": 0.0,
-    "fiber": 0.0,
-    "fat": 15.0,
+    "calories": 220,
+    "protein": 9,
+    "carbs": 28,
+    "fiber": 0.5,
+    "fat": 8,
     "default_weight_g": 300,
     "category": "主食類",
     "english_name": "eels on rice",
-    "source": "usda:Fish, eel, mixed species, cooked, dry heat"
+    "source": "manual_estimate (整碗鰻魚飯，取代原本誤用的純鰻魚肉USDA數值)"
   },
   "UEC003_炒什錦飯": {
     "calories": 359,
@@ -44,26 +44,26 @@
     "source": "manual_estimate"
   },
   "UEC005_豬排蓋飯": {
-    "calories": 107,
-    "protein": 22.1,
-    "carbs": 0.0,
-    "fiber": 0.0,
-    "fat": 2.07,
+    "calories": 190,
+    "protein": 8,
+    "carbs": 23,
+    "fiber": 0.5,
+    "fat": 7.5,
     "default_weight_g": 320,
     "category": "主食類",
     "english_name": "pork cutlet on rice",
-    "source": "usda:Veal, leg, top round, cap off, cutlet, boneless, raw"
+    "source": "manual_estimate (整碗豬排蓋飯，取代原本誤用的生小牛肉USDA數值)"
   },
   "UEC006_牛肉咖哩飯": {
-    "calories": 325,
-    "protein": 14.3,
-    "carbs": 55.8,
-    "fiber": 53.2,
-    "fat": 14.0,
+    "calories": 170,
+    "protein": 6,
+    "carbs": 22,
+    "fiber": 1.5,
+    "fat": 6,
     "default_weight_g": 350,
     "category": "主食類",
     "english_name": "beef curry",
-    "source": "usda:Spices, curry powder"
+    "source": "manual_estimate (整碗牛肉咖哩飯，取代原本誤用的純咖哩粉USDA數值)"
   },
   "UEC007_壽司": {
     "calories": 150,
@@ -77,15 +77,15 @@
     "source": "manual_estimate"
   },
   "UEC008_雞肉飯": {
-    "calories": 51.0,
-    "protein": 1.6,
-    "carbs": 9.2,
-    "fiber": 1.1,
-    "fat": 0.9,
+    "calories": 180,
+    "protein": 7,
+    "carbs": 25,
+    "fiber": 0.5,
+    "fat": 5,
     "default_weight_g": 300,
     "category": "主食類",
     "english_name": "chicken rice",
-    "source": "usda:Babyfood, dinner, chicken and rice"
+    "source": "manual_estimate (整碗雞肉飯，取代原本誤用的嬰兒食品USDA數值)"
   },
   "UEC009_炒飯": {
     "calories": 174,
