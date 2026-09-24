@@ -4,7 +4,7 @@
 - 板子（RTD2811，3.9GB RAM，2 核 A73，NPU）上以 systemd 服務 `riv-foodai.service` 常駐執行，開機自動啟動，gunicorn **單一 worker**（NPU 與 LLM 引擎只有一份，不可增加 worker）。
 - 網頁首頁有兩個分頁：
   - 水果／零食辨識（原本 9 類，torch 跑在 CPU，路由 `/detect`）
-  - 三餐主食辨識（測試版，UEC FOOD 100 共 100 類，NPU 上的 YOLO11n，路由 `/detect100`）
+  - 三餐主食辨識（測試版，UEC FOOD 100 共 100 類，NPU 上的 YOLO11s / 512px，路由 `/detect100`）
 - 兩個偵測器互相獨立，尚未合併，等實測後再決定。
 - 辨識結果頁會先顯示偵測與營養表，AI 營養師建議由頁面載入後非同步向 `/api/advice/<token>` 取得（LLM 約 20 秒，Gemma4-E4B，NPU）。
 - 網頁資源（Bootstrap）已本機化，不依賴外網；上傳前瀏覽器會先把照片縮到最長邊 1280px。
@@ -22,16 +22,17 @@
 | 項目 | 路徑 |
 |---|---|
 | LLM（Gemma4 E4B） | `/data/models/gemma4_e4b/`（使用 `packed_engine_e4b_fixed_strip_llmonly.json`） |
-| 100 類偵測模型 | `/data/models/uecfood_full100/network_binary.nb` + `labels.txt` |
+| 100 類偵測模型（目前使用） | `/data/models/uecfood_s512/network_binary.nb`（YOLO11s，512px，約 11ms） |
+| 100 類偵測舊版（備份） | `/data/models/uecfood_full100/`（YOLO11n，416px，含 `labels.txt`，仍被新版共用） |
 | 已 patch 的 YOLO 執行檔 | `/opt/matrix/bin/matrixrt_yolo`（備份於 `/data/matrixrt_yolo_patched/`，開機由 `restore-matrixrt-yolo.service` 還原） |
 
-`matrixrt_yolo` 已改為可指定 `--imgsz --nc --cores`，100 類模型需 `--imgsz 416 --nc 100 --cores 2`。
+`matrixrt_yolo` 已改為可指定 `--imgsz --nc --cores`，100 類模型需 `--imgsz 512 --nc 100 --cores 2`（舊版 416）。
 
 ## 模型訓練與轉換流程（電腦端）
-1. 訓練：Ultralytics YOLO11，資料 UEC FOOD 100（`training/uecfood_gpu/` 有 GPU 版腳本）。第一版：11n、416px、25 epochs，mAP50=0.683。
+1. 訓練：Ultralytics YOLO11，資料 UEC FOOD 100（`training/uecfood_gpu/` 有 GPU 版腳本）。第一版：11n、416px、25 epochs，mAP50=0.683；現行版（RTX 4060）：11s、512px、80 epochs，mAP50=0.782。
 2. 匯出 ONNX（opset 12，固定解析度）。
 3. VirtualBox 內 `Andes_Qilai_Ubuntu`：`importer.py` → `quantize_hybrid_yolo.py <dir> asymu8 yolov11n --iterations 60` → `export_nbg_setup.py <dir> asymu8 --use_hybrid`。
-4. 校正圖要用 60 張以上（1 張時量化後信心值會掉很多）。
+4. 校正圖用每類 2 張共 200 張、與輸入同解析度（`--iterations 200`）。板端實測（2109 張驗證圖）NPU 與浮點差距很小：信心值 0.3 時召回 72.0% vs 73.2%。評估腳本在 `training/eval/`。
 
 ## 已知限制
 - 板子上只有 1.5GB 左右可用記憶體，LLM 換更大模型前要先確認 Realtek 工具鏈是否支援。
@@ -44,4 +45,3 @@
 - 9 類偵測器改跑 NPU（去掉 torch，省記憶體與啟動時間）
 - 兩個偵測器是否合併
 - 每日累計與個人化營養目標
-- GPU 版（YOLO11s、512px）新模型的轉換與板端評估
