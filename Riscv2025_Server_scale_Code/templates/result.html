@@ -421,31 +421,37 @@
                 }
             } catch (e) {}
 
-            // 詳細時間分解（用瀏覽器內建Performance API，不需要額外伺服器支援）：
-            // 如果「使用者實際等待」還是遠大於「伺服器運算時間」，這裡可以看出到底卡在
-            // 上傳/等首個位元組(TTFB)、還是頁面本身下載、還是CSS/JS/圖片這些子資源。
+        });
+
+        // 詳細處理時間（用瀏覽器內建Performance API，不需要額外伺服器支援）：
+        // 如果「使用者實際等待」還是遠大於「伺服器運算時間」，點開看到底卡在
+        // 上傳/等首個位元組(TTFB)、還是頁面本身下載、還是CSS/JS/圖片這些子資源。
+        // 必須等 load 事件（而不是 DOMContentLoaded）才讀 loadEventEnd，
+        // 不然這個值還沒寫入、會是0，算出來的時間會變成負數。
+        window.addEventListener('load', function() {
             try {
                 const nav = performance.getEntriesByType('navigation')[0];
-                if (nav) {
-                    const lines = [];
-                    lines.push(`上傳+等伺服器回應(TTFB): ${(nav.responseStart - nav.requestStart).toFixed(0)}ms`);
-                    lines.push(`下載結果頁面HTML: ${(nav.responseEnd - nav.responseStart).toFixed(0)}ms`);
-                    lines.push(`頁面解析+子資源載入: ${(nav.loadEventEnd - nav.responseEnd).toFixed(0)}ms`);
+                if (!nav) return;
 
-                    const resources = performance.getEntriesByType('resource')
-                        .filter(r => r.duration > 200)
-                        .sort((a, b) => b.duration - a.duration)
-                        .slice(0, 5);
-                    resources.forEach(r => {
-                        const name = r.name.split('/').pop().split('?')[0];
-                        lines.push(`　子資源 ${name}: ${r.duration.toFixed(0)}ms`);
-                    });
+                const lines = [];
+                lines.push(`上傳+等伺服器回應(TTFB): ${(nav.responseStart - nav.requestStart).toFixed(0)}ms`);
+                lines.push(`下載結果頁面HTML: ${(nav.responseEnd - nav.responseStart).toFixed(0)}ms`);
+                lines.push(`頁面解析+子資源載入: ${(nav.loadEventEnd - nav.responseEnd).toFixed(0)}ms`);
 
-                    const detail = document.createElement('details');
-                    detail.className = 'small text-muted mt-2';
-                    detail.innerHTML = `<summary style="cursor:pointer;">詳細時間分解（除錯用）</summary><div class="mt-1">${lines.join('<br>')}</div>`;
-                    document.getElementById('client-wait-time').after(detail);
-                }
+                const resources = performance.getEntriesByType('resource')
+                    .filter(r => r.duration > 200)
+                    .sort((a, b) => b.duration - a.duration)
+                    .slice(0, 5);
+                resources.forEach(r => {
+                    const name = r.name.split('/').pop().split('?')[0];
+                    lines.push(`　子資源 ${name}: ${r.duration.toFixed(0)}ms`);
+                });
+
+                const detail = document.createElement('details');
+                detail.className = 'small text-muted mt-2';
+                detail.innerHTML = `<summary style="cursor:pointer;">詳細處理時間（需要再點開觀察）</summary><div class="mt-1">${lines.join('<br>')}</div>`;
+                const anchor = document.getElementById('client-wait-time');
+                if (anchor) anchor.after(detail);
             } catch (e) {}
         });
     </script>
