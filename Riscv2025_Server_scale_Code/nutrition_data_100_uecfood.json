@@ -1,14 +1,14 @@
 {
   "UEC001_白飯": {
-    "calories": 97.0,
-    "protein": 2.02,
-    "carbs": 21.1,
-    "fiber": 1.0,
-    "fat": 0.19,
+    "calories": 126,
+    "protein": 2.7,
+    "carbs": 28.2,
+    "fiber": 0.4,
+    "fat": 0.3,
     "default_weight_g": 250,
     "category": "主食類",
     "english_name": "rice",
-    "source": "usda:Rice, white, glutinous, unenriched, cooked"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC002_鰻魚飯": {
     "calories": 220,
@@ -22,15 +22,15 @@
     "source": "manual_estimate (整碗鰻魚飯，取代原本誤用的純鰻魚肉USDA數值)"
   },
   "UEC003_炒什錦飯": {
-    "calories": 359,
-    "protein": 10.4,
-    "carbs": 76.3,
-    "fiber": 1.2,
-    "fat": 1.37,
+    "calories": 148,
+    "protein": 3.0,
+    "carbs": 26,
+    "fiber": 1.0,
+    "fat": 3.5,
     "default_weight_g": 280,
     "category": "主食類",
     "english_name": "pilaf",
-    "source": "usda:Rice and vermicelli mix, rice pilaf flavor, unprepared"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC004_親子丼": {
     "calories": 150,
@@ -132,15 +132,15 @@
     "source": "usda:Bread, white, commercially prepared, toasted"
   },
   "UEC013_可頌": {
-    "calories": 254,
-    "protein": 7.4,
-    "carbs": 37.1,
-    "fiber": 2.5,
-    "fat": 8.7,
+    "calories": 406,
+    "protein": 8.2,
+    "carbs": 46,
+    "fiber": 2.6,
+    "fat": 21,
     "default_weight_g": 65,
     "category": "點心類",
     "english_name": "croissant",
-    "source": "usda:Croissants, apple"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC014_圓麵包": {
     "calories": 307,
@@ -198,15 +198,15 @@
     "source": "usda:PIZZA HUT 12\" Cheese Pizza, Pan Crust"
   },
   "UEC019_三明治": {
-    "calories": 237,
-    "protein": 4.29,
-    "carbs": 37.1,
-    "fiber": 0.0,
-    "fat": 8.57,
+    "calories": 246,
+    "protein": 11,
+    "carbs": 28,
+    "fiber": 2.0,
+    "fat": 10,
     "default_weight_g": 180,
     "category": "主食類",
     "english_name": "sandwiches",
-    "source": "usda:Ice cream sandwich"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC020_烏龍麵": {
     "calories": 108,
@@ -220,15 +220,15 @@
     "source": "usda:Rice noodles, cooked"
   },
   "UEC021_天婦羅烏龍麵": {
-    "calories": 108,
-    "protein": 1.79,
-    "carbs": 24.0,
+    "calories": 119,
+    "protein": 4,
+    "carbs": 19,
     "fiber": 1.0,
-    "fat": 0.2,
+    "fat": 3,
     "default_weight_g": 380,
     "category": "主食類",
     "english_name": "tempura udon",
-    "source": "usda:Rice noodles, cooked"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC022_蕎麥麵": {
     "calories": 99.0,
@@ -242,59 +242,59 @@
     "source": "usda:Noodles, japanese, soba, cooked"
   },
   "UEC023_拉麵": {
-    "calories": 440,
-    "protein": 10.2,
-    "carbs": 60.3,
-    "fiber": 2.9,
-    "fat": 17.6,
+    "calories": 128,
+    "protein": 6,
+    "carbs": 16,
+    "fiber": 1.0,
+    "fat": 4.5,
     "default_weight_g": 400,
     "category": "主食類",
     "english_name": "ramen noodle",
-    "source": "usda:Soup, ramen noodle, any flavor, dry"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC024_牛肉麵": {
-    "calories": 67.0,
-    "protein": 3.85,
-    "carbs": 7.16,
-    "fiber": 0.6,
-    "fat": 2.46,
+    "calories": 90,
+    "protein": 6,
+    "carbs": 11,
+    "fiber": 1.0,
+    "fat": 2.5,
     "default_weight_g": 450,
     "category": "主食類",
     "english_name": "beef noodle",
-    "source": "usda:Soup, beef noodle, canned, condensed"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC025_天津炒麵": {
-    "calories": 270,
-    "protein": 18.8,
-    "carbs": 8.86,
-    "fiber": 3.9,
-    "fat": 20.2,
+    "calories": 162,
+    "protein": 6,
+    "carbs": 22,
+    "fiber": 1.5,
+    "fat": 5.5,
     "default_weight_g": 350,
     "category": "主食類",
     "english_name": "tensin noodle",
-    "source": "usda:Tofu, fried"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC026_炒麵": {
-    "calories": 270,
-    "protein": 18.8,
-    "carbs": 8.86,
-    "fiber": 3.9,
-    "fat": 20.2,
+    "calories": 162,
+    "protein": 6,
+    "carbs": 22,
+    "fiber": 1.5,
+    "fat": 5.5,
     "default_weight_g": 300,
     "category": "主食類",
     "english_name": "fried noodle",
-    "source": "usda:Tofu, fried"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC027_義大利麵": {
-    "calories": 130,
-    "protein": 4.58,
-    "carbs": 26.2,
-    "fiber": 0,
-    "fat": 0.63,
+    "calories": 152,
+    "protein": 5.5,
+    "carbs": 28,
+    "fiber": 1.8,
+    "fat": 2,
     "default_weight_g": 300,
     "category": "主食類",
     "english_name": "spaghetti",
-    "source": "usda:Spaghetti, spinach, cooked"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC028_大阪燒": {
     "calories": 180,
@@ -319,92 +319,92 @@
     "source": "manual_estimate"
   },
   "UEC030_焗烤": {
-    "calories": 314,
-    "protein": 8.9,
-    "carbs": 74.3,
-    "fiber": 4.1,
-    "fat": 3.7,
+    "calories": 144,
+    "protein": 6,
+    "carbs": 12,
+    "fiber": 1.0,
+    "fat": 8,
     "default_weight_g": 250,
     "category": "主食類",
     "english_name": "gratin",
-    "source": "usda:Potatoes, au gratin, dry mix, unprepared"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC031_炒時蔬": {
-    "calories": 123,
-    "protein": 0.95,
-    "carbs": 7.86,
-    "fiber": 1.7,
-    "fat": 10.8,
+    "calories": 72,
+    "protein": 2,
+    "carbs": 6,
+    "fiber": 2.0,
+    "fat": 4.5,
     "default_weight_g": 150,
     "category": "蔬菜類",
     "english_name": "sauteed vegetables",
-    "source": "usda:Onions, yellow, sauteed"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC032_可樂餅": {
-    "calories": 266,
-    "protein": 12.5,
-    "carbs": 47.1,
-    "fiber": 6.3,
-    "fat": 3.13,
+    "calories": 215,
+    "protein": 5,
+    "carbs": 24,
+    "fiber": 1.5,
+    "fat": 11,
     "default_weight_g": 100,
     "category": "點心類",
     "english_name": "croquette",
-    "source": "usda:Bread, potato"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC033_烤茄子": {
-    "calories": 49.0,
-    "protein": 0.9,
-    "carbs": 9.77,
+    "calories": 41,
+    "protein": 1,
+    "carbs": 7,
     "fiber": 2.5,
-    "fat": 0.7,
+    "fat": 1,
     "default_weight_g": 120,
     "category": "蔬菜類",
     "english_name": "grilled eggplant",
-    "source": "usda:Eggplant, pickled"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC034_炒菠菜": {
-    "calories": 123,
-    "protein": 0.95,
-    "carbs": 7.86,
-    "fiber": 1.7,
-    "fat": 10.8,
+    "calories": 64,
+    "protein": 3,
+    "carbs": 3,
+    "fiber": 2.0,
+    "fat": 4.5,
     "default_weight_g": 120,
     "category": "蔬菜類",
     "english_name": "sauteed spinach",
-    "source": "usda:Onions, yellow, sauteed"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC035_炸蔬菜天婦羅": {
-    "calories": 312,
-    "protein": 3.43,
-    "carbs": 41.4,
-    "fiber": 3.8,
-    "fat": 14.7,
+    "calories": 247,
+    "protein": 3,
+    "carbs": 25,
+    "fiber": 2.5,
+    "fat": 15,
     "default_weight_g": 150,
     "category": "蔬菜類",
     "english_name": "vegetable tempura",
-    "source": "usda:Fast foods, potato, french fried in vegetable oil"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC036_味噌湯": {
-    "calories": 198,
-    "protein": 12.8,
-    "carbs": 25.4,
-    "fiber": 5.4,
-    "fat": 6.01,
+    "calories": 36,
+    "protein": 2.5,
+    "carbs": 4,
+    "fiber": 0.8,
+    "fat": 1.1,
     "default_weight_g": 200,
     "category": "湯類",
     "english_name": "miso soup",
-    "source": "usda:Miso"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC037_濃湯": {
-    "calories": 81.0,
-    "protein": 1.29,
-    "carbs": 6.59,
-    "fiber": 0.6,
-    "fat": 5.5,
+    "calories": 64,
+    "protein": 1.5,
+    "carbs": 6.5,
+    "fiber": 0.8,
+    "fat": 3.5,
     "default_weight_g": 200,
     "category": "湯類",
     "english_name": "potage",
-    "source": "usda:CAMPBELL'S, Cream of Mushroom Soup, condensed"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC038_香腸": {
     "calories": 271,
@@ -418,15 +418,15 @@
     "source": "usda:Pork sausage, reduced sodium, cooked"
   },
   "UEC039_關東煮": {
-    "calories": 285,
-    "protein": 26.9,
-    "carbs": 0.0,
-    "fiber": 0.0,
-    "fat": 18.9,
+    "calories": 70,
+    "protein": 5,
+    "carbs": 8,
+    "fiber": 1.0,
+    "fat": 2,
     "default_weight_g": 300,
-    "category": "主食類",
+    "category": "湯類",
     "english_name": "oden",
-    "source": "usda:Chicken, stewing, meat and skin, cooked, stewed"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC040_蛋捲/歐姆蛋": {
     "calories": 154,
@@ -468,20 +468,20 @@
     "fiber": 1.5,
     "fat": 6,
     "default_weight_g": 300,
-    "category": "主食類",
+    "category": "肉類",
     "english_name": "stew",
     "source": "manual_estimate"
   },
   "UEC044_照燒烤魚": {
-    "calories": 277,
-    "protein": 11.0,
-    "carbs": 21.7,
-    "fiber": 1.5,
-    "fat": 16.2,
+    "calories": 198,
+    "protein": 20,
+    "carbs": 7,
+    "fiber": 0.2,
+    "fat": 10,
     "default_weight_g": 150,
     "category": "肉類",
     "english_name": "teriyaki grilled fish",
-    "source": "usda:Fish, fish sticks, frozen, prepared"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC045_炸魚": {
     "calories": 220,
@@ -539,15 +539,15 @@
     "source": "manual_estimate"
   },
   "UEC050_壽喜燒": {
-    "calories": 250,
-    "protein": 27.1,
-    "carbs": 0.0,
-    "fiber": 0.0,
-    "fat": 14.9,
+    "calories": 131,
+    "protein": 10,
+    "carbs": 7,
+    "fiber": 1.0,
+    "fat": 7,
     "default_weight_g": 350,
-    "category": "主食類",
+    "category": "肉類",
     "english_name": "sukiyaki",
-    "source": "usda:Beef, cured, corned beef, canned"
+    "source": "manual_estimate (審查修正：原USDA比對對象不符整道菜)"
   },
   "UEC051_糖醋里肌": {
     "calories": 270,
@@ -644,7 +644,7 @@
     "fiber": 1.3,
     "fat": 4,
     "default_weight_g": 300,
-    "category": "主食類",
+    "category": "肉類",
     "english_name": "seasoned beef with potatoes",
     "source": "manual_estimate"
   },
@@ -820,7 +820,7 @@
     "fiber": 1.5,
     "fat": 4,
     "default_weight_g": 300,
-    "category": "主食類",
+    "category": "肉類",
     "english_name": "boiled chicken and vegetables",
     "source": "manual_estimate"
   },
