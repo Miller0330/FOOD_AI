@@ -449,7 +449,7 @@
 
                 const detail = document.createElement('details');
                 detail.className = 'small text-muted mt-2';
-                detail.innerHTML = `<summary style="cursor:pointer;">詳細處理時間（需要再點開觀察）</summary><div class="mt-1">${lines.join('<br>')}</div>`;
+                detail.innerHTML = `<summary style="cursor:pointer;">詳細處理時間</summary><div class="mt-1">${lines.join('<br>')}</div>`;
                 const anchor = document.getElementById('client-wait-time');
                 if (anchor) anchor.after(detail);
             } catch (e) {}
