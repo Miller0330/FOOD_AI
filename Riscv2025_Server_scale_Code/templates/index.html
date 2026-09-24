@@ -164,31 +164,60 @@
                 </div>
                 
                 <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">食物辨識系統</h5>
+                    <div class="card-header p-0" style="background: transparent; box-shadow:none;">
+                        <ul class="nav nav-tabs" id="detect-mode-tabs" style="border:none; padding: 10px 10px 0;">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-fruit" type="button">🍎 水果／零食辨識</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-meal" type="button">🍚 三餐主食辨識（測試版）</button>
+                            </li>
+                        </ul>
                     </div>
                     <div class="card-body">
-                        <form action="/detect" method="post" enctype="multipart/form-data" id="upload-form" onsubmit="return submitWithWeight()">
-                            <input type="hidden" id="weight-input" name="weight" value="0">
-                            <div class="file-upload">
-                                <label for="file-input" class="upload-label" id="upload-area">
-                                    <div class="upload-icon">📷</div>
-                                    <h5>點擊上傳照片或拍攝照片</h5>
-                                    <p class="text-muted">支援 JPG、PNG 格式</p>
-                                </label>
-                                <input id="file-input" type="file" name="file" accept="image/*" onchange="previewImage(this)">
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="tab-fruit">
+                                <form action="/detect" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="return submitWithWeight(this)">
+                                    <input type="hidden" class="weight-input" name="weight" value="0">
+                                    <div class="file-upload">
+                                        <label class="upload-label upload-area">
+                                            <div class="upload-icon">📷</div>
+                                            <h5>點擊上傳照片或拍攝照片</h5>
+                                            <p class="text-muted">支援 JPG、PNG 格式，辨識水果、餅乾等9類</p>
+                                            <input type="file" class="file-input" name="file" accept="image/*" onchange="previewImage(this)">
+                                        </label>
+                                    </div>
+                                    <div class="preview-container text-center" style="display:none;">
+                                        <img class="image-preview" src="#" alt="Preview">
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm(this)">重新選擇</button>
+                                            <button type="submit" class="btn btn-primary"><span>開始辨識</span></button>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
-                            
-                            <div id="preview-container" class="text-center">
-                                <img id="image-preview" src="#" alt="Preview">
-                                <div class="mt-3">
-                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">重新選擇</button>
-                                    <button type="submit" class="btn btn-primary">
-                                        <span>開始辨識</span>
-                                    </button>
-                                </div>
+                            <div class="tab-pane fade" id="tab-meal">
+                                <p class="text-muted small">測試版：使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別，準確度仍在調校中。</p>
+                                <form action="/detect100" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="return submitWithWeight(this)">
+                                    <input type="hidden" class="weight-input" name="weight" value="0">
+                                    <div class="file-upload">
+                                        <label class="upload-label upload-area">
+                                            <div class="upload-icon">🍱</div>
+                                            <h5>點擊上傳照片或拍攝照片</h5>
+                                            <p class="text-muted">支援 JPG、PNG 格式，辨識飯、麵、便當菜等100類</p>
+                                            <input type="file" class="file-input" name="file" accept="image/*" onchange="previewImage(this)">
+                                        </label>
+                                    </div>
+                                    <div class="preview-container text-center" style="display:none;">
+                                        <img class="image-preview" src="#" alt="Preview">
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm(this)">重新選擇</button>
+                                            <button type="submit" class="btn btn-primary"><span>開始辨識</span></button>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
                 
@@ -266,9 +295,9 @@
                 });
         }
         
-        function submitWithWeight() {
+        function submitWithWeight(form) {
             // 直接使用當前顯示的重量值
-            document.getElementById('weight-input').value = currentWeight;
+            form.querySelector('.weight-input').value = currentWeight;
             console.log('辨識時重量:', currentWeight + 'g');
             return true; // 繼續提交表單
         }
@@ -281,28 +310,31 @@
         
         function previewImage(input) {
             if (input.files && input.files[0]) {
+                var form = input.closest('.upload-form');
                 var reader = new FileReader();
-                
+
                 reader.onload = function(e) {
-                    document.getElementById('image-preview').src = e.target.result;
-                    document.getElementById('preview-container').style.display = 'block';
-                    document.getElementById('upload-area').style.display = 'none';
+                    form.querySelector('.image-preview').src = e.target.result;
+                    form.querySelector('.preview-container').style.display = 'block';
+                    form.querySelector('.upload-area').style.display = 'none';
                 }
-                
+
                 reader.readAsDataURL(input.files[0]);
             }
         }
-        
-        function resetForm() {
-            document.getElementById('upload-form').reset();
-            document.getElementById('preview-container').style.display = 'none';
-            document.getElementById('upload-area').style.display = 'block';
+
+        function resetForm(button) {
+            var form = button.closest('.upload-form');
+            form.reset();
+            form.querySelector('.preview-container').style.display = 'none';
+            form.querySelector('.upload-area').style.display = 'block';
         }
-        
+
         // Enable camera capture on mobile
         if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
-            const fileInput = document.getElementById('file-input');
-            fileInput.setAttribute('capture', 'environment');
+            document.querySelectorAll('.file-input').forEach(function(fileInput) {
+                fileInput.setAttribute('capture', 'environment');
+            });
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>

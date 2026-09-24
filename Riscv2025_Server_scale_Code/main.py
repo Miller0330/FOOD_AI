@@ -11,6 +11,7 @@ import json
 
 # 導入.py檔案
 from Detector import TFLiteDetector
+from Detector100 import UECFood100Detector
 from Calculate import calculate_diet_recommendations
 from WeightSensor import initialize_weight_sensor, get_weight_data
 app = Flask(__name__)
@@ -36,6 +37,27 @@ with open('nutrition_data.json', 'r') as file:
 NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fiber', 'fat']
 MIN_CONFIDENCE_FOR_NUTRITION = 0.5  # 偵測器本身的門檻只有0.25(為了不漏掉東西)，
                                      # 但信心值太低的偵測不該被算進營養總量，容易誤導使用者
+
+# ===== 100類UEC-FOOD主食辨識（方案C：先當獨立第二入口，測試效果好不好再決定要不要合併）=====
+with open('nutrition_data_100_uecfood.json', 'r', encoding='utf-8') as file:
+    nutrition_data_100_raw = json.load(file)
+
+detector100 = UECFood100Detector(conf_threshold=0.15, iou_threshold=0.45)
+
+# matrixrt_yolo標註圖上/偵測結果的class_name是英文（來自labels.txt，即訓練時的UEC類別英文名），
+# 這裡依UEC編號排序建立「英文名-> 完整營養資料」的對照表，跟訓練時的class index順序完全一致
+_uec_keys_sorted = sorted(nutrition_data_100_raw.keys(), key=lambda k: int(k[3:6]))
+nutrition_data_100 = {}
+name_map_100 = {}
+category_map_100 = {}
+for key in _uec_keys_sorted:
+    entry = nutrition_data_100_raw[key]
+    english_key = entry['english_name'].replace(' ', '_').replace("'", '').replace('-', '_')
+    chinese_name = key.split('_', 1)[1]  # "UEC003_炒什錦飯" -> "炒什錦飯"
+    nutrition_data_100[english_key] = entry
+    name_map_100[english_key] = chinese_name
+    category_map_100[english_key] = entry.get('category', '')
+MIN_CONFIDENCE_FOR_NUTRITION_100 = 0.3  # 100類模型的原始信心值普遍比9類模型低（小資料集+多類別），門檻放寬一些
 
 # 初始化重量感測器
 try:
@@ -204,6 +226,108 @@ def detect():
                               result=result_data, 
                               nutrition_data=nutrition_data,
                               timestamp=timestamp)
+
+@app.route('/detect100', methods=['POST'])
+def detect100():
+    """100類UEC-FOOD三餐主食辨識（方案C獨立入口，測試用，尚未跟9類水果/零食偵測器合併）"""
+    if 'file' not in request.files:
+        return redirect(request.url)
+
+    file = request.files['file']
+    if file.filename == '':
+        return redirect(request.url)
+
+    detection_weight = float(request.form.get('weight', 0))
+
+    if file:
+        request_start = time.time()
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = secure_filename(f"100_{timestamp}_{file.filename}")
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        result_stem = os.path.splitext(filename)[0]
+        result_filename = f"result_{result_stem}.jpg"
+        result_filepath = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
+
+        start_time = time.time()
+        detections = detector100.detect(filepath, output_path=result_filepath)
+        inference_time = time.time() - start_time
+
+        low_confidence_count = sum(1 for d in detections if d['confidence'] < MIN_CONFIDENCE_FOR_NUTRITION_100)
+        confident_detections = [d for d in detections if d['confidence'] >= MIN_CONFIDENCE_FOR_NUTRITION_100]
+
+        detection_counts = {}
+        total_nutrition = {'calories': 0, 'protein': 0, 'carbs': 0, 'fiber': 0, 'fat': 0}
+        for detection in confident_detections:
+            class_name = detection['class_name']
+            detection_counts[class_name] = detection_counts.get(class_name, 0) + 1
+
+        def _bbox_area(det):
+            x_min, y_min, x_max, y_max = det['bbox']
+            return max(0, x_max - x_min) * max(0, y_max - y_min)
+
+        total_area = sum(_bbox_area(d) for d in confident_detections)
+
+        food_breakdown = {}
+
+        def _add_breakdown(class_name, item_weight):
+            b = food_breakdown.setdefault(class_name, {'weight_g': 0.0, 'calories': 0.0})
+            b['weight_g'] += item_weight
+            b['calories'] += nutrition_data_100[class_name].get('calories', 0) * (item_weight / 100)
+
+        if confident_detections and detection_weight > 0:
+            for detection in confident_detections:
+                class_name = detection['class_name']
+                if class_name not in nutrition_data_100:
+                    continue
+                area = _bbox_area(detection)
+                item_weight = (detection_weight * area / total_area) if total_area > 0 else (detection_weight / len(confident_detections))
+                weight_ratio = item_weight / 100
+                for nutrient in NUTRIENT_KEYS:
+                    total_nutrition[nutrient] += nutrition_data_100[class_name].get(nutrient, 0) * weight_ratio
+                _add_breakdown(class_name, item_weight)
+        else:
+            for detection in confident_detections:
+                class_name = detection['class_name']
+                if class_name not in nutrition_data_100:
+                    continue
+                default_weight = nutrition_data_100[class_name].get('default_weight_g', 100)
+                weight_ratio = default_weight / 100
+                for nutrient in NUTRIENT_KEYS:
+                    total_nutrition[nutrient] += nutrition_data_100[class_name].get(nutrient, 0) * weight_ratio
+                _add_breakdown(class_name, default_weight)
+
+        dietary_recommendations = calculate_diet_recommendations(total_nutrition)
+
+        # 表格顯示用中文名（食物明細/攝取比例），detection_counts本身仍用英文key對應nutrition_data_100
+        detection_counts_display = {name_map_100.get(k, k): v for k, v in detection_counts.items()}
+        food_breakdown_display = {name_map_100.get(k, k): v for k, v in food_breakdown.items()}
+
+        result_data = {
+            'detections': detection_counts_display,
+            'food_breakdown': food_breakdown_display,
+            'result_image': f"/static/uploads/{result_filename}",
+            'inference_time': f"{inference_time*1000:.2f}ms",
+            'total_items': len(confident_detections),
+            'low_confidence_count': low_confidence_count,
+            'detection_weight': detection_weight,
+            'nutrition': total_nutrition,
+            'recommendations': dietary_recommendations
+        }
+
+        llm_advice = get_llm_advice(detection_counts, total_nutrition, dietary_recommendations, detection_weight,
+                                     name_map=name_map_100, category_map=category_map_100)
+        result_data['llm_advice'] = llm_advice
+        result_data['total_time'] = f"{time.time() - request_start:.1f}s"
+
+        _cleanup_old_uploads()
+
+        return render_template('result.html',
+                              result=result_data,
+                              nutrition_data=nutrition_data_100,
+                              timestamp=timestamp)
+
 
 @app.route('/api/weight')
 def get_weight():

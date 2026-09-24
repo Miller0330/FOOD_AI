@@ -87,11 +87,14 @@ def _extract_answer(raw: str) -> str:
     return text
 
 
-def get_llm_advice(detections, nutrition, recommendations, weight):
+def get_llm_advice(detections, nutrition, recommendations, weight, name_map=None, category_map=None):
     if not detections:
         return "這次沒有偵測到食物，請重新拍攝或確認照片中有清楚的食物內容。"
 
-    food_list = '、'.join([f"{FOOD_NAME_MAP.get(k, k)}{v}份" for k, v in detections.items()])
+    name_map = name_map if name_map is not None else FOOD_NAME_MAP
+    category_map = category_map if category_map is not None else FOOD_CATEGORY_MAP
+
+    food_list = '、'.join([f"{name_map.get(k, k)}{v}份" for k, v in detections.items()])
     cal_pct = round(recommendations.get('calories', {}).get('percentage', 0), 1)
     protein_pct = round(recommendations.get('protein', {}).get('percentage', 0), 1)
     carbs_pct = round(recommendations.get('carbs', {}).get('percentage', 0), 1)
@@ -104,7 +107,7 @@ def get_llm_advice(detections, nutrition, recommendations, weight):
     fiber_desc = "不足" if fiber_pct < 15 else "充足"
     fat_desc = "偏低" if fat_pct < 20 else ("適中" if fat_pct < 40 else "偏高")
 
-    categories_eaten = sorted({FOOD_CATEGORY_MAP[k] for k in detections.keys() if k in FOOD_CATEGORY_MAP})
+    categories_eaten = sorted({category_map[k] for k in detections.keys() if k in category_map})
     category_note = f"已攝取的食物類別：{'、'.join(categories_eaten)}，請勿再推薦同類別食物作為建議。" if categories_eaten else ""
 
     # 限制長度/格式的指示直接寫進使用者問題本身（-p system prompt 這個引擎版本不生效，已實測確認）。
