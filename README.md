@@ -113,6 +113,8 @@ cd training\uecfood_gpu
 python setup_dataset.py      # 下載 UEC FOOD 100（約 945MB）→ yolo_full100/
 python run_train_gpu.py      # 訓練 + 匯出 ONNX（opset 12）
 ```
+訓練成果（`best.pt`、`best.onnx`、每類指標、訓練曲線、log）已放在 [`training/uecfood_gpu/results/`](training/uecfood_gpu/results/)，可直接取用，不必重訓。
+
 中斷後續訓：`YOLO("runs/detect/runs/uecfood_gpu_s512/weights/last.pt").train(resume=True)`。
 
 實測：14,361 張影像、100 類、驗證集 2,109 張；batch 32 佔 5.3GB VRAM；約 2.6 分鐘 / epoch，共 3.4 小時。ONNX 輸出 `(1, 104, 5376)`（100 類 + 4 座標，512px 對應 5376 個 anchor）。
@@ -165,7 +167,7 @@ python run_train_gpu.py      # 訓練 + 匯出 ONNX（opset 12）
 11. **資安**：`run_server_normal.sh` 內有硬編碼使用者密碼、`run_server_scale.sh` 註解寫有 root 密碼，只適用內網開發板，正式部署前請移除；服務不要暴露到公網。
 12. **上傳**：瀏覽器先把照片縮到最長邊 1280px；伺服器上限 16MB，`static/uploads/` 只保留最近 200 個檔案。
 13. **資料授權**：UEC FOOD 100 為非商業研究用途，商用前需確認授權。
-14. **不要進版控**：`train_env/`、`UECFOOD100/`、`yolo_full100/`、`dataset100.zip`（約 1GB）、`runs/`、`*.pt`、`*.onnx`、`.nb` 等大檔。
+14. **不要進版控**：`train_env/`、`UECFOOD100/`、`yolo_full100/`、`dataset100.zip`（約 1GB）、`runs/`、預訓練權重（`yolo11s.pt` 等，ultralytics 會自動下載）。例外：`training/uecfood_gpu/results/` 內的 `best.pt`（19MB）、`best.onnx`（38MB）為刻意納入版控。
 
 ---
 
