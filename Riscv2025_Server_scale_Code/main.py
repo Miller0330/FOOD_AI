@@ -8,15 +8,14 @@ import base64
 from datetime import datetime
 import time
 import json
-import uuid
-import threading
-import collections
 
 # 導入.py檔案
 from Detector import TFLiteDetector
 from Detector100 import UECFood100Detector, IMG_SIZE as DETECTOR100_IMG_SIZE
 from Calculate import calculate_diet_recommendations
 from WeightSensor import initialize_weight_sensor, get_weight_data
+from food_logic import (NUTRIENT_KEYS, split_by_confidence, compute_nutrition, build_boxes, build_portion_items,
+                        AdviceRegistry, cleanup_old_uploads)
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB最大上傳限制
@@ -37,7 +36,6 @@ detector = TFLiteDetector(
 with open('nutrition_data.json', 'r') as file:
     nutrition_data = json.load(file)
 
-NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fiber', 'fat']
 MIN_CONFIDENCE_FOR_NUTRITION = 0.5  # 偵測器本身的門檻只有0.25(為了不漏掉東西)，
                                      # 但信心值太低的偵測不該被算進營養總量，容易誤導使用者
 
@@ -79,28 +77,9 @@ print("正在準備 AI 模型，請稍候...")
 _ensure_engine_running()
 print("AI 模型準備完成")
 
-MAX_KEPT_UPLOADS = 200  # 上傳資料夾最多保留幾個檔案（原圖+標註圖各算一個），避免長期執行把 /data 空間吃光
+MAX_KEPT_UPLOADS = 200  # 上傳資料夾最多保留幾個檔案，避免長期執行把 /data 空間吃光
+advice_registry = AdviceRegistry(50)  # LLM 建議非同步取得：結果頁先出，建議由 /api/advice/<token> 補上
 
-def _cleanup_old_uploads():
-    folder = app.config['UPLOAD_FOLDER']
-    try:
-        files = [os.path.join(folder, f) for f in os.listdir(folder)]
-    except FileNotFoundError:
-        return
-    if len(files) <= MAX_KEPT_UPLOADS:
-        return
-    files.sort(key=lambda f: os.path.getmtime(f))
-    for f in files[:len(files) - MAX_KEPT_UPLOADS]:
-        try:
-            os.remove(f)
-        except OSError:
-            pass
-
-# LLM建議要好幾秒才生成完，不讓它擋住整個結果頁：結果頁先渲染，建議由頁面載入完成後
-# 再向 /api/advice/<token> 非同步取得。這裡暫存「等待生成」的參數（重啟即清空，無所謂）。
-MAX_PENDING_ADVICE = 50
-_pending_advice = collections.OrderedDict()
-_pending_lock = threading.Lock()
 
 def _attach_advice(result_data, detection_counts, total_nutrition, recommendations, weight,
                    name_map=None, category_map=None):
@@ -108,17 +87,13 @@ def _attach_advice(result_data, detection_counts, total_nutrition, recommendatio
         # 沒偵測到食物時建議是固定文字，不需要動用LLM，直接內嵌
         result_data['llm_advice'] = get_llm_advice(detection_counts, total_nutrition, recommendations, weight)
         return
-    token = uuid.uuid4().hex
-    with _pending_lock:
-        _pending_advice[token] = (detection_counts, total_nutrition, recommendations, weight, name_map, category_map)
-        while len(_pending_advice) > MAX_PENDING_ADVICE:
-            _pending_advice.popitem(last=False)
-    result_data['advice_token'] = token
+    result_data['advice_token'] = advice_registry.register(
+        (detection_counts, total_nutrition, recommendations, weight, name_map, category_map))
+
 
 @app.route('/api/advice/<token>')
 def get_advice(token):
-    with _pending_lock:
-        params = _pending_advice.pop(token, None)
+    params = advice_registry.pop(token)
     if params is None:
         return jsonify({'success': False, 'error': '建議已過期，請重新辨識'}), 404
     detection_counts, total_nutrition, recommendations, weight, name_map, category_map = params
@@ -128,36 +103,10 @@ def get_advice(token):
                             name_map=name_map, category_map=category_map)
     return jsonify({'success': True, 'advice': advice, 'seconds': round(time.time() - t0, 1)})
 
-def _build_boxes(detections, img_w, img_h, label_map, min_conf):
-    """轉成網頁疊圖用的百分比座標。標註不再燒進圖片：中文字由瀏覽器畫，也不對使用者顯示信心度。"""
-    def pct(v, total):
-        return round(max(0.0, min(100.0, v / total * 100)), 2)
-    boxes = []
-    for d in detections:
-        x1, y1, x2, y2 = d['bbox']
-        boxes.append({
-            'label': label_map.get(d['class_name'], d['class_name']),
-            'confidence': round(d['confidence'], 2),
-            'counted': d['confidence'] >= min_conf,
-            'x': pct(x1, img_w), 'y': pct(y1, img_h),
-            'w': pct(x2 - x1, img_w), 'h': pct(y2 - y1, img_h),
-        })
-    return boxes
-
-
-def _build_portion_items(food_breakdown, counts, nutrition_src, name_of):
-    """給網頁份量滑桿用：每種食物的原始重量與每100g營養值，前端即時重算不必重新辨識。"""
-    return [{
-        'name': name_of(cn),
-        'count': counts.get(cn, 1),
-        'weight_g': round(b['weight_g'], 1),
-        'per100': {k: nutrition_src[cn].get(k, 0) for k in NUTRIENT_KEYS},
-    } for cn, b in food_breakdown.items()]
-
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', features={'meal100': True})
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -198,67 +147,12 @@ def detect():
         cv2.imwrite(result_filepath, img)
         
         # 信心值太低的偵測不列入營養計算（但仍會畫在標註圖上），避免誤導使用者
-        low_confidence_count = sum(1 for d in detections if d['confidence'] < MIN_CONFIDENCE_FOR_NUTRITION)
-        confident_detections = [d for d in detections if d['confidence'] >= MIN_CONFIDENCE_FOR_NUTRITION]
-        boxes = _build_boxes(detections, img.shape[1], img.shape[0], FOOD_NAME_MAP, MIN_CONFIDENCE_FOR_NUTRITION)
+        confident_detections, low_confidence_count = split_by_confidence(detections, MIN_CONFIDENCE_FOR_NUTRITION)
+        boxes = build_boxes(detections, img.shape[1], img.shape[0], FOOD_NAME_MAP, MIN_CONFIDENCE_FOR_NUTRITION)
 
-        # 按類別計數檢測結果
-        detection_counts = {}
-        total_nutrition = {'calories': 0, 'protein': 0, 'carbs': 0, 'fiber': 0, 'fat': 0}
-
-        for detection in confident_detections:
-            class_name = detection['class_name']
-            if class_name in detection_counts:
-                detection_counts[class_name] += 1
-            else:
-                detection_counts[class_name] = 1
-
-        # 每個偵測框的面積（用來按大小分配重量，而不是齊頭式平均）
-        def _bbox_area(det):
-            x_min, y_min, x_max, y_max = det['bbox']
-            return max(0, x_max - x_min) * max(0, y_max - y_min)
-
-        total_area = sum(_bbox_area(d) for d in confident_detections)
+        res = compute_nutrition(confident_detections, nutrition_data, detection_weight)
+        detection_counts, total_nutrition, food_breakdown = res['detection_counts'], res['total_nutrition'], res['food_breakdown']
         detections = confident_detections
-
-        # 每個食物類別的實際明細（重量、熱量），跟下面 total_nutrition 用同一套邏輯算，
-        # 讓網頁上「食物明細」表格跟「營養素攝取比例」的數字保證對得起來
-        # （舊版食物明細是模板自己另外用 每100g熱量*數量 重算一次，跟這裡的加權結果對不上）
-        food_breakdown = {}
-
-        def _add_breakdown(class_name, item_weight):
-            b = food_breakdown.setdefault(class_name, {'weight_g': 0.0, 'calories': 0.0})
-            b['weight_g'] += item_weight
-            b['calories'] += nutrition_data[class_name].get('calories', 0) * (item_weight / 100)
-
-        if detections and detection_weight > 0:
-            # 有秤重數據：依每個偵測框佔全部框面積的比例分配總重量，
-            # 而不是不分物件大小地平均分配（例如一根香蕉跟一顆小餅乾框選面積差很多）
-            print(f"總重量: {detection_weight}g, 總項目數: {len(detections)}, 依偵測框面積比例分配")
-
-            for detection in detections:
-                class_name = detection['class_name']
-                if class_name not in nutrition_data:
-                    continue
-                area = _bbox_area(detection)
-                item_weight = (detection_weight * area / total_area) if total_area > 0 else (detection_weight / len(detections))
-                weight_ratio = item_weight / 100  # nutrition_data 是每100g的數值
-
-                for nutrient in NUTRIENT_KEYS:
-                    total_nutrition[nutrient] += nutrition_data[class_name].get(nutrient, 0) * weight_ratio
-                _add_breakdown(class_name, item_weight)
-        else:
-            # 沒有秤重數據：用每種食物的典型單位重量估算，而不是把每個偵測到的物件都當成100g
-            for detection in detections:
-                class_name = detection['class_name']
-                if class_name not in nutrition_data:
-                    continue
-                default_weight = nutrition_data[class_name].get('default_weight_g', 100)
-                weight_ratio = default_weight / 100
-
-                for nutrient in NUTRIENT_KEYS:
-                    total_nutrition[nutrient] += nutrition_data[class_name].get(nutrient, 0) * weight_ratio
-                _add_breakdown(class_name, default_weight)
 
         # 計算飲食建議
         dietary_recommendations = calculate_diet_recommendations(total_nutrition)
@@ -267,7 +161,7 @@ def detect():
         result_data = {
             'detections': detection_counts,
             'food_breakdown': food_breakdown,
-            'portion_items': _build_portion_items(food_breakdown, detection_counts, nutrition_data,
+            'portion_items': build_portion_items(food_breakdown, detection_counts, nutrition_data,
                                                   lambda c: FOOD_NAME_MAP.get(c, c)),
             'boxes': boxes,
             'result_image': f"/static/uploads/{result_filename}",
@@ -281,7 +175,7 @@ def detect():
         _attach_advice(result_data, detection_counts, total_nutrition, dietary_recommendations, detection_weight)
         result_data['total_time'] = f"{time.time() - request_start:.1f}s"
 
-        _cleanup_old_uploads()
+        cleanup_old_uploads(app.config['UPLOAD_FOLDER'], MAX_KEPT_UPLOADS)
 
         return render_template('result.html',
                               result=result_data, 
@@ -321,54 +215,15 @@ def detect100():
         detections = detector100.detect(filepath)
         inference_time = time.time() - start_time
 
-        low_confidence_count = sum(1 for d in detections if d['confidence'] < MIN_CONFIDENCE_FOR_NUTRITION_100)
-        confident_detections = [d for d in detections if d['confidence'] >= MIN_CONFIDENCE_FOR_NUTRITION_100]
-        boxes = _build_boxes(detections, DETECTOR100_IMG_SIZE, DETECTOR100_IMG_SIZE, name_map_100, MIN_CONFIDENCE_FOR_NUTRITION_100)
+        confident_detections, low_confidence_count = split_by_confidence(detections, MIN_CONFIDENCE_FOR_NUTRITION_100)
+        boxes = build_boxes(detections, DETECTOR100_IMG_SIZE, DETECTOR100_IMG_SIZE, name_map_100, MIN_CONFIDENCE_FOR_NUTRITION_100)
 
-        detection_counts = {}
-        total_nutrition = {'calories': 0, 'protein': 0, 'carbs': 0, 'fiber': 0, 'fat': 0}
-        for detection in confident_detections:
-            class_name = detection['class_name']
-            detection_counts[class_name] = detection_counts.get(class_name, 0) + 1
-
-        def _bbox_area(det):
-            x_min, y_min, x_max, y_max = det['bbox']
-            return max(0, x_max - x_min) * max(0, y_max - y_min)
-
-        total_area = sum(_bbox_area(d) for d in confident_detections)
-
-        food_breakdown = {}
-
-        def _add_breakdown(class_name, item_weight):
-            b = food_breakdown.setdefault(class_name, {'weight_g': 0.0, 'calories': 0.0})
-            b['weight_g'] += item_weight
-            b['calories'] += nutrition_data_100[class_name].get('calories', 0) * (item_weight / 100)
-
-        if confident_detections and detection_weight > 0:
-            for detection in confident_detections:
-                class_name = detection['class_name']
-                if class_name not in nutrition_data_100:
-                    continue
-                area = _bbox_area(detection)
-                item_weight = (detection_weight * area / total_area) if total_area > 0 else (detection_weight / len(confident_detections))
-                weight_ratio = item_weight / 100
-                for nutrient in NUTRIENT_KEYS:
-                    total_nutrition[nutrient] += nutrition_data_100[class_name].get(nutrient, 0) * weight_ratio
-                _add_breakdown(class_name, item_weight)
-        else:
-            for detection in confident_detections:
-                class_name = detection['class_name']
-                if class_name not in nutrition_data_100:
-                    continue
-                default_weight = nutrition_data_100[class_name].get('default_weight_g', 100)
-                weight_ratio = default_weight / 100
-                for nutrient in NUTRIENT_KEYS:
-                    total_nutrition[nutrient] += nutrition_data_100[class_name].get(nutrient, 0) * weight_ratio
-                _add_breakdown(class_name, default_weight)
+        res = compute_nutrition(confident_detections, nutrition_data_100, detection_weight)
+        detection_counts, total_nutrition, food_breakdown = res['detection_counts'], res['total_nutrition'], res['food_breakdown']
 
         dietary_recommendations = calculate_diet_recommendations(total_nutrition)
 
-        portion_items = _build_portion_items(food_breakdown, detection_counts, nutrition_data_100,
+        portion_items = build_portion_items(food_breakdown, detection_counts, nutrition_data_100,
                                              lambda c: name_map_100.get(c, c))
 
         # 表格顯示用中文名（食物明細/攝取比例），detection_counts本身仍用英文key對應nutrition_data_100
@@ -393,7 +248,7 @@ def detect100():
                        name_map=name_map_100, category_map=category_map_100)
         result_data['total_time'] = f"{time.time() - request_start:.1f}s"
 
-        _cleanup_old_uploads()
+        cleanup_old_uploads(app.config['UPLOAD_FOLDER'], MAX_KEPT_UPLOADS)
 
         return render_template('result.html',
                               result=result_data,

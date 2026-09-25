@@ -212,7 +212,7 @@
                                             {% else %}🍽️
                                             {% endif %}
                                         </span>
-                                        <span>{{ name_map.get(class_name, class_name) }}</span>
+                                        <span>{{ (name_map or {}).get(class_name, class_name) }}</span>
                                         <span class="badge-count">{{ count }} 個</span>
                                     </li>
                                     {% endfor %}
@@ -419,7 +419,7 @@
         (function () {
             const ranges = document.querySelectorAll('.portion-range');
             if (!ranges.length) return;
-            const ITEMS = {{ result.portion_items|tojson }};
+            const ITEMS = {{ (result.portion_items or [])|tojson }};
             const TARGETS = {{ {'calories': result.recommendations.calories.recommended, 'protein': result.recommendations.protein.recommended,
                                 'carbs': result.recommendations.carbs.recommended, 'fiber': result.recommendations.fiber.recommended,
                                 'fat': result.recommendations.fat.recommended}|tojson }};

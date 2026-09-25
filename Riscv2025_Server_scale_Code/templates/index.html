@@ -164,6 +164,7 @@
                 </div>
                 
                 <div class="card">
+                    {% if features and features.meal100 %}
                     <div class="card-header p-0" style="background: transparent; box-shadow:none;">
                         <ul class="nav nav-tabs" id="detect-mode-tabs" style="border:none; padding: 10px 10px 0;">
                             <li class="nav-item">
@@ -174,6 +175,7 @@
                             </li>
                         </ul>
                     </div>
+                    {% endif %}
                     <div class="card-body">
                         <div class="tab-content">
                             <div class="tab-pane fade show active" id="tab-fruit">
@@ -196,6 +198,7 @@
                                     </div>
                                 </form>
                             </div>
+                            {% if features and features.meal100 %}
                             <div class="tab-pane fade" id="tab-meal">
                                 <p class="text-muted small">測試版：使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別，準確度仍在調校中。</p>
                                 <form action="/detect100" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="submitWithWeight(this, event)">
@@ -217,6 +220,7 @@
                                     </div>
                                 </form>
                             </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
