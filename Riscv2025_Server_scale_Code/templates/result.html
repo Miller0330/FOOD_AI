@@ -101,25 +101,33 @@
             background: linear-gradient(135deg, #9caf88, #7f9873);
             color: white;
             border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 20px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
+        .weight-cols { display: flex; }
+        .weight-col { flex: 1; text-align: center; padding: 0 8px; }
+        .weight-col + .weight-col { border-left: 1px solid rgba(255,255,255,0.35); }
+        .weight-label { font-size: 14px; font-weight: 600; line-height: 1.4; opacity: 0.95; }
         .weight-value {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: bold;
-            text-align: center;
-            margin: 5px 0;
+            line-height: 1.25;
         }
         .weight-unit {
             font-size: 14px;
+            font-weight: normal;
             opacity: 0.9;
         }
-        .weight-status {
-            text-align: center;
-            margin-top: 5px;
-            font-size: 14px;
+        .weight-foot {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 6px;
+            font-size: 13px;
         }
+        .weight-foot .btn { padding: 1px 10px; font-size: 13px; }
         .status-indicator {
             display: inline-block;
             width: 8px;
@@ -153,24 +161,19 @@
             <div class="col-md-10">
                 <!-- 重量顯示區域 -->
                 <div class="weight-display">
-                    <div class="row align-items-center">
-                        <div class="col-6">
-                            <h6 class="mb-1">辨識時重量</h6>
+                    <div class="weight-cols">
+                        <div class="weight-col">
+                            <div class="weight-label">辨識時重量</div>
                             <div class="weight-value">{{ result.detection_weight|round(1) }} <span class="weight-unit">g</span></div>
                         </div>
-                        <div class="col-6">
-                            <h6 class="mb-1">當前重量</h6>
+                        <div class="weight-col">
+                            <div class="weight-label">當前重量</div>
                             <div class="weight-value" id="weight-value">0.0 <span class="weight-unit">g</span></div>
-                            <div class="weight-status">
-                                <span class="status-indicator" id="status-indicator"></span>
-                                <span id="connection-status">連接中...</span>
-                            </div>
                         </div>
                     </div>
-                    <div class="text-center mt-3">
-                        <button type="button" class="btn btn-light btn-sm" onclick="updateWeight()">
-                            <span>🔄 刷新重量</span>
-                        </button>
+                    <div class="weight-foot">
+                        <span><span class="status-indicator" id="status-indicator"></span><span id="connection-status">連接中...</span></span>
+                        <button type="button" class="btn btn-light btn-sm" onclick="updateWeight()">🔄 刷新重量</button>
                     </div>
                 </div>
                 
