@@ -12,7 +12,7 @@ import os
 
 MATRIXRT_YOLO_BIN = '/opt/matrix/bin/matrixrt_yolo'
 MODEL_PATH = '/data/models/uecfood_s512/network_binary.nb'  # YOLO11s/512px；舊版11n/416px在 /data/models/uecfood_full100/
-LABELS_PATH = '/data/models/uecfood_full100/labels.txt'
+LABELS_PATH = '/data/models/uecfood_s512/labels.txt'
 IMG_SIZE = 512
 NUM_CLASSES = 100
 NPU_CORES = 2

@@ -125,6 +125,8 @@ Riscv2025_Server_scale_Code/      ← 板子上實際執行的程式（含秤重
   templates/ static/vendor/       前端（結果頁疊圖、份量滑桿）與本機化 Bootstrap
   SHARED_UI_INTEGRATION.md        給其他板子分支的整合指南
   detectv2_torch.pt               9 類模型權重
+models/uecfood_s512/             100 類 NPU 模型 network_binary.nb（約 15MB，YOLO11s／512px）＋ labels.txt
+deploy/                           一鍵部署腳本 deploy_to_board.sh 與 systemd 服務檔
 training/
   uecfood_gpu/                    GPU 重訓腳本與任務說明（TASK.md）
   eval/                           NPU vs 浮點的驗證集評估腳本
@@ -134,8 +136,8 @@ Riscv2025_Server_Code/            原始不含秤重的舊版伺服器（沿用�
 
 **訓練成果已進 git**：[`training/uecfood_gpu/results/`](training/uecfood_gpu/results/) 有 `best.pt`（19MB）、`best.onnx`（38MB）、`data.yaml`、每類指標、訓練曲線、混淆矩陣與完整 log，可直接拿去轉 NPU，不必重訓。
 
-**不在 git 裡的檔案**（體積大或屬於 vendor，見 [7.1](#71-需要準備的檔案)）：
-100 類 NPU 模型（`network_binary.nb`，約 15MB）、Gemma4 引擎（數 GB）、`matrixrt_yolo` 修改版、訓練資料集。
+**100 類 NPU 模型也已進 git**（`models/uecfood_s512/`），拉下來就能部署。
+**仍不在 git 裡的檔案**（屬於板子環境或 vendor，見 [7.1](#71-需要準備的檔案)）：Gemma4 LLM 引擎（數 GB）、`matrixrt_yolo` 修改版執行檔、Python 套件（`/data/pylibs`）、訓練資料集。
 `Riscv2025_Server_scale_Code/` 內的 `llama-cli`、`llama-cli-new`、`debug_llm.py` 是 RISC-V 分支留下的東西，**Matrix 版不使用**（Matrix 用的是 `MatriXRT-llm-cli`）。
 
 ## 6. 連線到板子
@@ -151,15 +153,26 @@ Riscv2025_Server_Code/            原始不含秤重的舊版伺服器（沿用�
 
 ## 7. 從零啟用（部署）
 
+### 7.0 快速部署（推薦）
+板子已具備 **LLM 引擎、`/data/pylibs` 套件、修改版 `matrixrt_yolo`**（見 7.1，這三樣屬於板子環境）且電腦能 SSH 到板子時：
+```bash
+git clone -b Realtek-Matrix https://github.com/Miller0330/RIV-FoodAI-Backup.git
+cd RIV-FoodAI-Backup
+./deploy/deploy_to_board.sh              # 預設板子 IP 192.100.100.2，可帶參數指定其他 IP
+```
+腳本會：檢查前置條件（缺什麼會印出警告）→ 複製 100 類模型與標籤到 `/data/models/uecfood_s512/` → 複製程式、營養資料、前端到 `/data/RIV-FoodAI-Backup/Riscv2025_Server_scale_Code/` → 安裝並啟用兩個 systemd 服務 → 清 `__pycache__` → 重啟服務。
+完成後等 **2–3 分鐘暖機**再開 `http://192.100.100.2:5000`。腳本可重複執行，也就是日後更新程式的標準做法。
+（Windows 請在 Git Bash 或 WSL 執行；電腦端要先完成第 6 節的網路與 SSH 金鑰設定。）
+
 ### 7.1 需要準備的檔案
 
 | 項目 | 板子上路徑 | 來源 |
 |---|---|---|
-| 程式 | `/data/RIV-FoodAI-Backup/Riscv2025_Server_scale_Code/` | 本 repo 的 `Riscv2025_Server_scale_Code/`（用 `scp` 覆蓋，板上不是 git checkout） |
+| 程式 | `/data/RIV-FoodAI-Backup/Riscv2025_Server_scale_Code/` | 本 repo 的 `Riscv2025_Server_scale_Code/`（由部署腳本 `scp` 過去，板上不是 git checkout） |
 | Gemma4 E4B 引擎 | `/data/models/gemma4_e4b/`（`MatriXRT-llm-cli`、`packed_engine_e4b_fixed_strip_llmonly.json`、`.alm`、`ple.bin`、`tokens.bin`、`tokenizer.json`） | Realtek 預載於板子，共約 5.8GB；`MatriXRT-llm-cli` 需要 `chmod +x` |
-| 100 類 NPU 模型 | `/data/models/uecfood_s512/network_binary.nb` | 由訓練→ONNX→轉換產生（第 11 節），約 15MB；未進 git |
-| 100 類標籤檔 | `/data/models/uecfood_full100/labels.txt` | 每行一個英文類別名，順序即訓練的 class index；同 [`training/eval/labels_100.txt`](training/eval/labels_100.txt) |
-| 修改版 YOLO 執行檔 | `/opt/matrix/bin/matrixrt_yolo`，備份在 `/data/matrixrt_yolo_patched/` | Realtek 範例程式修改而來（支援 `--imgsz --nc --cores`） |
+| 100 類 NPU 模型 | `/data/models/uecfood_s512/network_binary.nb` | **本 repo `models/uecfood_s512/`**，部署腳本會複製；重新產生見第 11 節 |
+| 100 類標籤檔 | `/data/models/uecfood_s512/labels.txt` | 本 repo `models/uecfood_s512/labels.txt`；每行一個英文類別名，順序即訓練的 class index（同 [`training/eval/labels_100.txt`](training/eval/labels_100.txt)） |
+| 修改版 YOLO 執行檔 | `/opt/matrix/bin/matrixrt_yolo`，備份在 `/data/matrixrt_yolo_patched/matrixrt_yolo_bin` | Realtek 範例程式修改而來（支援 `--imgsz --nc --cores`），因屬 vendor 程式碼**未放進 repo**；全新板子需依 7.4 自行修改編譯 |
 | Python 套件 | `/data/pylibs`（flask、gunicorn、torch 2.5.1…） | 見 7.2 |
 | 系統套件 | apt：`python3-opencv`、`python3-numpy`、`python3-serial` | 在 `/dev/root`，重置後仍在 |
 
@@ -174,7 +187,7 @@ pip3 install --break-system-packages --no-index --find-links=<wheel資料夾> --
 服務以 `PYTHONPATH=/data/pylibs` 找到它們。`cv2`、`numpy` 走 apt 安裝，不用放 `/data`。
 
 ### 7.3 systemd 服務
-`/etc` 是真正的 ext4（不會被清），服務檔放這裡才會開機自動啟動。
+`/etc` 是真正的 ext4（不會被清），服務檔放這裡才會開機自動啟動。以下內容就是 repo 的 [`deploy/`](deploy/) 資料夾裡的兩個檔案，部署腳本會自動安裝。
 
 `/etc/systemd/system/riv-foodai.service`
 ```ini
@@ -241,7 +254,7 @@ ssh root@192.100.100.2 "find /data/RIV-FoodAI-Backup -name __pycache__ -exec rm 
 
 **確認執行中的模型**：`ps aux | grep -E "MatriXRT|gunicorn"`。
 
-**換 100 類模型**：把新的 `network_binary.nb` 放到新資料夾（例如 `/data/models/<新名>/`），修改 `Detector100.py` 的 `MODEL_PATH` 與 `IMG_SIZE`，清 pycache 後重啟。舊模型保留當備份，回滾只需改回這兩行。
+**換 100 類模型**：把新的 `network_binary.nb` 與 `labels.txt` 放到新資料夾（例如 `/data/models/<新名>/`，repo 內建議放 `models/<新名>/`），修改 `Detector100.py` 的 `MODEL_PATH`、`LABELS_PATH` 與 `IMG_SIZE`，清 pycache 後重啟（或改 `deploy_to_board.sh` 的模型資料夾後重新部署）。舊模型保留當備份，回滾只需改回這幾行。
 
 ## 9. 設定與門檻一覽
 

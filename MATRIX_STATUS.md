@@ -23,7 +23,7 @@
 |---|---|
 | LLM（Gemma4 E4B） | `/data/models/gemma4_e4b/`（使用 `packed_engine_e4b_fixed_strip_llmonly.json`） |
 | 100 類偵測模型（目前使用） | `/data/models/uecfood_s512/network_binary.nb`（YOLO11s，512px，約 11ms） |
-| 100 類偵測舊版（備份） | `/data/models/uecfood_full100/`（YOLO11n，416px，含 `labels.txt`，仍被新版共用） |
+| 100 類偵測舊版（備份） | `/data/models/uecfood_full100/`（YOLO11n，416px，僅備份；新版的 `labels.txt` 在 `uecfood_s512/`） |
 | 已 patch 的 YOLO 執行檔 | `/opt/matrix/bin/matrixrt_yolo`（備份於 `/data/matrixrt_yolo_patched/`，開機由 `restore-matrixrt-yolo.service` 還原） |
 
 `matrixrt_yolo` 已改為可指定 `--imgsz --nc --cores`，100 類模型需 `--imgsz 512 --nc 100 --cores 2`（舊版 416）。
