@@ -132,8 +132,11 @@ Riscv2025_CT1_scale_Code/         磅秤（CT1 + HX711）韌體
 Riscv2025_Server_Code/            原始不含秤重的舊版伺服器（沿用，非 Matrix 使用）
 ```
 
+**訓練成果已進 git**：[`training/uecfood_gpu/results/`](training/uecfood_gpu/results/) 有 `best.pt`（19MB）、`best.onnx`（38MB）、`data.yaml`、每類指標、訓練曲線、混淆矩陣與完整 log，可直接拿去轉 NPU，不必重訓。
+
 **不在 git 裡的檔案**（體積大或屬於 vendor，見 [7.1](#71-需要準備的檔案)）：
 100 類 NPU 模型（`network_binary.nb`，約 15MB）、Gemma4 引擎（數 GB）、`matrixrt_yolo` 修改版、訓練資料集。
+`Riscv2025_Server_scale_Code/` 內的 `llama-cli`、`llama-cli-new`、`debug_llm.py` 是 RISC-V 分支留下的東西，**Matrix 版不使用**（Matrix 用的是 `MatriXRT-llm-cli`）。
 
 ## 6. 連線到板子
 
@@ -282,7 +285,9 @@ ssh root@192.100.100.2 "find /data/RIV-FoodAI-Backup -name __pycache__ -exec rm 
 python setup_dataset.py     # 下載資料集並轉成 YOLO 格式
 python run_train_gpu.py     # YOLO11s / 512px / 80 epochs，完成後匯出 ONNX
 ```
-必須安裝 **CUDA 版** PyTorch（腳本會檢查）。匯出的 ONNX 為固定解析度（1×3×512×512），輸出形狀應為 `(1, 104, 5376)`（100 類＋4 框座標；512px 對應 5376 個 anchor），不符代表匯出尺寸錯了。
+必須安裝 **CUDA 版** PyTorch（腳本會檢查）。實測（RTX 4060 Laptop 8GB）：batch 32 約占 5.3GB VRAM，每個 epoch 約 2.6 分鐘，80 個 epoch 共約 3.4 小時；VRAM 不足時把 `run_train_gpu.py` 的 `batch` 改成 16。
+中斷後續訓：`YOLO("runs/detect/runs/uecfood_gpu_s512/weights/last.pt").train(resume=True)`，不要從頭重跑。
+`best.pt` 為 mAP50 0.782／0.610；最後一個 epoch 為 0.760／0.594（以 best 為準）。匯出的 ONNX 為固定解析度（1×3×512×512），輸出形狀應為 `(1, 104, 5376)`（100 類＋4 框座標；512px 對應 5376 個 anchor），不符代表匯出尺寸錯了。
 
 ### 轉成 NPU `.nb`（需 x86 Linux＋Python 3.10＋Realtek Reality 工具鏈）
 在 VirtualBox 的 Ubuntu 22.04 虛擬機（`Andes_Qilai_Ubuntu`）內，工具鏈模組名稱為 `realitylib`：
@@ -294,6 +299,7 @@ python3.10 export_nbg_setup.py <目錄>/ asymu8 --use_hybrid
 ```
 - `yolo_version` 字串是 `yolov11n` / `yolov11s`（不是 `yolo11n`）。
 - 校正圖：每類 2 張共 200 張，**與輸入同解析度**，存成 `inputs/images_<N>_1_3_<H>_<W>_<i>.npy`（`<N>` 是 importer 印出的編號，`<i>` 從 0 遞增；前處理為 RGB、/255、直接拉伸縮放，要與板端 `matrixrt_yolo` 一致）。**只給 1 張校正圖時量化後信心值會明顯下降**。
+- 前處理說明：訓練與 Ultralytics 驗證用 letterbox，但板端 `matrixrt_yolo` 是把整張圖**直接拉伸**成正方形（框座標也是拉伸後的座標，網頁疊圖用「除以輸入邊長」換算），校正圖也用同樣的拉伸縮放，實測 NPU 與浮點仍相當接近。
 - 量化約 10 秒／張校正圖（YOLO11s，512px）。
 - 這個 `.nb` 需要 **2 個 NPU 核心**，板端要加 `--cores 2`。
 
@@ -304,6 +310,7 @@ tar cf - -C yolo_full100/images/val . | ssh root@192.100.100.2 "mkdir -p /data/v
 # 板子上跑 training/eval/run_board_eval.sh（先把裡面的模型路徑與 --imgsz 改成新模型）
 python float_eval.py && python compare_eval.py      # 比較浮點與 NPU 的召回、精確度
 ```
+`training/eval/run_board_eval.sh` 目前仍寫舊模型（416px、`uecfood_full100`），評估新模型要改成 `--imgsz 512` 與 `/data/models/uecfood_s512/network_binary.nb`。
 換模型後請確認信心值 0.3 時 NPU 召回與浮點差距不大（現行約 1 個百分點）。
 
 ## 12. 注意事項（務必先讀）
@@ -320,7 +327,12 @@ python float_eval.py && python compare_eval.py      # 比較浮點與 NPU 的召
 10. **對話版原型**（`/data/RIV-FoodAI-Chat`，port 5001，`riv-foodai-chat.service`）預設停用，多輪回答不穩定，**絕對不能與主服務同時啟動**（會搶同一個 LLM 引擎）。
 11. **記憶體吃緊**：不要在板子上同時再啟動別的重程式（例如另一份 LLM CLI 做測試會讓兩份引擎互搶而變得極慢）。
 12. **100 類為測試版**：日式家常菜為主，湯品、白飯、外觀相近的魚類料理先天較弱，請把結果當作「輔助」，並用份量滑桿修正。
-13. **UEC FOOD 100 僅限非商業研究**；Gemma 與 Realtek 工具鏈各有自己的授權條款。
+13. **UEC FOOD 100 僅限非商業研究**；Gemma 與 Realtek 工具鏈各有自己的授權條款，商用前需確認。
+14. **類別順序必須一致**：`labels.txt`、訓練的 `data.yaml`（`training/eval/labels_100.txt`）、`nutrition_data_100_uecfood.json` 的編號排序三者順序要相同；改類別名稱時，`nutrition_data_100_uecfood.json` 的 `english_name` 與程式中的 `name_map_100` 也要同步。
+15. **弱類別的熱量僅供參考**：白飯（recall 僅約 0.13）、生菜沙拉（0.25）、味噌湯（0.36）等，湯與白飯常佔滿整張圖、標註範圍不一致，先天難辨。
+16. **電子秤（CT1）**：預設 `/dev/ttyUSB1`、115200。更換秤重元件需用 `ct1_scale_calibration.ino`（基準重量 `sample_weight = 1500` g）重新校正，再把比例因子填入 `ct1_scale.ino`。USB 供電問題尚未解。
+17. **資安**：`run_server_normal.sh` 內有硬編碼的使用者密碼設定、`run_server_scale.sh` 的註解裡寫有 root 帳號資訊，只適用內網開發板，**正式部署前請移除**，服務也不要暴露到公網。
+18. **不要進版控**：`train_env/`、`UECFOOD100/`、`yolo_full100/`、`dataset100.zip`（約 1GB）、`runs/`、預訓練權重（`yolo11s.pt` 等，Ultralytics 會自動下載）。例外：`training/uecfood_gpu/results/` 的 `best.pt`、`best.onnx` 是刻意納入版控的。
 
 ## 13. 疑難排解
 
