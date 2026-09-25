@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RISC V 用於食物辨識與營養管理 - 第二年計畫</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>食物辨識與營養管理</title>
+    <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f8f9fa;
+            background-color: #f6efe1;
             padding-bottom: 50px;
         }
         .header {
-            background: linear-gradient(135deg, #00923f, #4a8c54);
+            background: linear-gradient(135deg, #ab8158, #8a6642);
             color: white;
             padding: 20px 0;
             margin-bottom: 30px;
@@ -21,19 +21,20 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .card {
+            background-color: #fffbf3;
             border-radius: 15px;
             box-shadow: 0 6px 10px rgba(0,0,0,0.08);
             margin-bottom: 20px;
             border: none;
         }
         .card-header {
-            background: linear-gradient(135deg, #007bff, #6610f2);
-            color: white;
+            background: linear-gradient(135deg, #ddba8b, #c69c68);
+            color: #4a3624;
             border-radius: 15px 15px 0 0 !important;
             padding: 15px;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #007bff, #6610f2);
+            background: linear-gradient(135deg, #c69c68, #ab8158);
             border: none;
             border-radius: 50px;
             padding: 10px 25px;
@@ -41,7 +42,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.15);
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, #0069d9, #5b09d4);
+            background: linear-gradient(135deg, #b78b56, #8a6642);
             transform: translateY(-2px);
             transition: all 0.3s ease;
         }
@@ -57,18 +58,18 @@
         .upload-label {
             display: block;
             padding: 40px 20px;
-            background-color: #f8f9fa;
-            border: 2px dashed #ccc;
+            background-color: #f6efe1;
+            border: 2px dashed #d4b896;
             border-radius: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
         }
         .upload-label:hover {
-            background-color: #e9ecef;
+            background-color: #efe4d0;
         }
         .upload-icon {
             font-size: 48px;
-            color: #007bff;
+            color: #ab8158;
             margin-bottom: 10px;
         }
         #preview-container {
@@ -86,11 +87,11 @@
         }
         .feature-icon {
             font-size: 36px;
-            color: #007bff;
+            color: #ab8158;
             margin-bottom: 15px;
         }
         .weight-display {
-            background: linear-gradient(135deg, #28a745, #20c997);
+            background: linear-gradient(135deg, #9caf88, #7f9873);
             color: white;
             border-radius: 15px;
             padding: 20px;
@@ -140,8 +141,7 @@
 <body>
     <div class="header">
         <div class="container">
-            <h1>RISC V 用於食物辨識與營養管理</h1>
-            <p class="mb-0">第二年計畫</p>
+            <h1>食物辨識與營養管理</h1>
         </div>
     </div>
     
@@ -150,7 +150,7 @@
             <div class="col-md-8">
                 <!-- 重量顯示區域 -->
                 <div class="weight-display">
-                    <h5 class="text-center mb-3">RiscV CT1 磅秤</h5>
+                    <h5 class="text-center mb-3">磅秤重量</h5>
                     <div class="weight-value" id="weight-value">0.0 <span class="weight-unit">g</span></div>
                     <div class="weight-status">
                         <span class="status-indicator" id="status-indicator"></span>
@@ -164,31 +164,64 @@
                 </div>
                 
                 <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">食物辨識系統</h5>
+                    {% if features and features.meal100 %}
+                    <div class="card-header p-0" style="background: transparent; box-shadow:none;">
+                        <ul class="nav nav-tabs" id="detect-mode-tabs" style="border:none; padding: 10px 10px 0;">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-fruit" type="button">🍎 水果／零食辨識</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-meal" type="button">🍚 三餐主食辨識（測試版）</button>
+                            </li>
+                        </ul>
                     </div>
+                    {% endif %}
                     <div class="card-body">
-                        <form action="/detect" method="post" enctype="multipart/form-data" id="upload-form" onsubmit="return submitWithWeight()">
-                            <input type="hidden" id="weight-input" name="weight" value="0">
-                            <div class="file-upload">
-                                <label for="file-input" class="upload-label" id="upload-area">
-                                    <div class="upload-icon">📷</div>
-                                    <h5>點擊上傳照片或拍攝照片</h5>
-                                    <p class="text-muted">支援 JPG、PNG 格式</p>
-                                </label>
-                                <input id="file-input" type="file" name="file" accept="image/*" onchange="previewImage(this)">
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="tab-fruit">
+                                <form action="/detect" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="submitWithWeight(this, event)">
+                                    <input type="hidden" class="weight-input" name="weight" value="0">
+                                    <div class="file-upload">
+                                        <label class="upload-label upload-area">
+                                            <div class="upload-icon">📷</div>
+                                            <h5>點擊上傳照片或拍攝照片</h5>
+                                            <p class="text-muted">支援 JPG、PNG 格式，辨識水果、餅乾等9類</p>
+                                            <input type="file" class="file-input" name="file" accept="image/*" onchange="previewImage(this)">
+                                        </label>
+                                    </div>
+                                    <div class="preview-container text-center" style="display:none;">
+                                        <img class="image-preview" src="#" alt="Preview">
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm(this)">重新選擇</button>
+                                            <button type="submit" class="btn btn-primary"><span>開始辨識</span></button>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
-                            
-                            <div id="preview-container" class="text-center">
-                                <img id="image-preview" src="#" alt="Preview">
-                                <div class="mt-3">
-                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">重新選擇</button>
-                                    <button type="submit" class="btn btn-primary">
-                                        <span>開始辨識</span>
-                                    </button>
-                                </div>
+                            {% if features and features.meal100 %}
+                            <div class="tab-pane fade" id="tab-meal">
+                                <p class="text-muted small">測試版：使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別，準確度仍在調校中。</p>
+                                <form action="/detect100" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="submitWithWeight(this, event)">
+                                    <input type="hidden" class="weight-input" name="weight" value="0">
+                                    <div class="file-upload">
+                                        <label class="upload-label upload-area">
+                                            <div class="upload-icon">🍱</div>
+                                            <h5>點擊上傳照片或拍攝照片</h5>
+                                            <p class="text-muted">支援 JPG、PNG 格式，辨識飯、麵、便當菜等100類</p>
+                                            <input type="file" class="file-input" name="file" accept="image/*" onchange="previewImage(this)">
+                                        </label>
+                                    </div>
+                                    <div class="preview-container text-center" style="display:none;">
+                                        <img class="image-preview" src="#" alt="Preview">
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm(this)">重新選擇</button>
+                                            <button type="submit" class="btn btn-primary"><span>開始辨識</span></button>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
-                        </form>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
                 
@@ -266,11 +299,70 @@
                 });
         }
         
-        function submitWithWeight() {
+        // 手機拍的原圖常常好幾MB，上傳這段時間完全不會反映在伺服器的「運算時間」統計裡，
+        // 卻是使用者感受到的等待中很大一塊——上傳前先在瀏覽器端縮小，大幅減少要傳的資料量。
+        // 偵測模型本身輸入只有416px，遠超過這個尺寸的原圖對辨識準確度沒有幫助，縮小是安全的。
+        function resizeImageInput(input, maxDim, quality) {
+            return new Promise((resolve) => {
+                const file = input.files[0];
+                if (!file || file.size < 400 * 1024) return resolve(); // 小檔案不用處理
+
+                const objectUrl = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    let { width, height } = img;
+                    if (Math.max(width, height) > maxDim) {
+                        const scale = maxDim / Math.max(width, height);
+                        width = Math.round(width * scale);
+                        height = Math.round(height * scale);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => {
+                        URL.revokeObjectURL(objectUrl);
+                        if (!blob) return resolve();
+                        const resizedFile = new File([blob], 'upload.jpg', { type: 'image/jpeg' });
+                        const dt = new DataTransfer();
+                        dt.items.add(resizedFile);
+                        input.files = dt.files;
+                        console.log(`圖片縮圖: ${(file.size/1024).toFixed(0)}KB -> ${(blob.size/1024).toFixed(0)}KB`);
+                        resolve();
+                    }, 'image/jpeg', quality);
+                };
+                img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(); }; // 縮圖失敗就照原圖傳，不擋使用者
+                img.src = objectUrl;
+            });
+        }
+
+        async function submitWithWeight(form, event) {
+            event.preventDefault(); // 先擋下瀏覽器預設的立即送出，等縮圖做完才真正送出
+
             // 直接使用當前顯示的重量值
-            document.getElementById('weight-input').value = currentWeight;
+            form.querySelector('.weight-input').value = currentWeight;
             console.log('辨識時重量:', currentWeight + 'g');
-            return true; // 繼續提交表單
+
+            // 記錄按下按鈕的時間點，讓結果頁能算出「使用者實際等待時間」
+            // （伺服器算的總處理時間不包含上傳/下載/頁面渲染，使用者感受到的等待通常更長）
+            try {
+                sessionStorage.setItem('detect_click_time', Date.now().toString());
+            } catch (e) {}
+
+            // 送出後立刻鎖住按鈕、顯示處理中，避免使用者以為沒反應而重複點擊
+            // （伺服器單一worker一次只能處理一個請求，重複點擊會讓兩次請求排隊疊加等待時間）
+            const submitBtn = form.querySelector('button[type=submit]');
+            const cancelBtn = form.querySelector('button[type=button]');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '處理圖片中…'; }
+            if (cancelBtn) cancelBtn.disabled = true;
+
+            const fileInput = form.querySelector('.file-input');
+            await resizeImageInput(fileInput, 1280, 0.85);
+
+            if (submitBtn) {
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>辨識中，請稍候…';
+            }
+            HTMLFormElement.prototype.submit.call(form); // 繞過onsubmit，直接真正送出表單
         }
         
         // 頁面載入時初始化，但不自動讀取重量
@@ -281,30 +373,33 @@
         
         function previewImage(input) {
             if (input.files && input.files[0]) {
+                var form = input.closest('.upload-form');
                 var reader = new FileReader();
-                
+
                 reader.onload = function(e) {
-                    document.getElementById('image-preview').src = e.target.result;
-                    document.getElementById('preview-container').style.display = 'block';
-                    document.getElementById('upload-area').style.display = 'none';
+                    form.querySelector('.image-preview').src = e.target.result;
+                    form.querySelector('.preview-container').style.display = 'block';
+                    form.querySelector('.upload-area').style.display = 'none';
                 }
-                
+
                 reader.readAsDataURL(input.files[0]);
             }
         }
-        
-        function resetForm() {
-            document.getElementById('upload-form').reset();
-            document.getElementById('preview-container').style.display = 'none';
-            document.getElementById('upload-area').style.display = 'block';
+
+        function resetForm(button) {
+            var form = button.closest('.upload-form');
+            form.reset();
+            form.querySelector('.preview-container').style.display = 'none';
+            form.querySelector('.upload-area').style.display = 'block';
         }
-        
+
         // Enable camera capture on mobile
         if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
-            const fileInput = document.getElementById('file-input');
-            fileInput.setAttribute('capture', 'environment');
+            document.querySelectorAll('.file-input').forEach(function(fileInput) {
+                fileInput.setAttribute('capture', 'environment');
+            });
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
 </body>
 </html>

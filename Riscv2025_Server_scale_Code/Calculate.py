@@ -13,7 +13,8 @@ def calculate_diet_recommendations(nutrition_total):
         'calories': 2000,      # 卡路里
         'protein': 60,         # 克
         'carbs': 300,          # 克
-        'fiber': 25            # 克
+        'fiber': 25,           # 克
+        'fat': 65              # 克（每日參考值）
     }
     
     recommendations = {}
