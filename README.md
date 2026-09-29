@@ -6,7 +6,7 @@
 | 平台 | 板子 | LLM | 偵測 | 辨識類別 |
 |---|---|---|---|---|
 | `riscv` | RISC-V（Qilai EVB／HiFive，原 `main`） | llama.cpp riscv64（`llama-cli-new`）＋ Qwen2.5-0.5B ＋ prompt cache | torch（CPU）9 類 | 水果／零食 9 類 |
-| `genio` | MediaTek Genio 720（ARM64 Linux） | llama.cpp b10964（`llama-completion`）＋ prompt cache | torch（CPU）9 類 | 水果／零食 9 類 |
+| `genio` | MediaTek Genio 720（ARM64 Linux） | llama.cpp b10964（`llama-completion`，CPU）：Qwen2.5-3B 或 Gemma 4 E4B | 9 類（CPU）＋ **100 類 YOLO11s（onnxruntime CPU）** | 9 類＋三餐主食 100 類 |
 | `matrix` | Realtek Matrix RTD2811（Ubuntu 24.04） | Gemma4 E4B（NPU，`MatriXRT-llm-cli`） | 9 類（CPU）＋ **100 類 YOLO11s（NPU）** | 9 類＋三餐主食 100 類 |
 
 各平台的 UI、營養計算、營養資料庫、份量滑桿等**完全共用**；只有 LLM 與 100 類 NPU 偵測是各平台自己的。
@@ -28,7 +28,8 @@ python3 main.py                             # 監聽 0.0.0.0:5000；啟動時暖
 
 ### Genio 720
 ```bash
-pip3 install -r requirements/genio.txt      # 比 RISC-V 多 torch、opencc
+pip3 install -r requirements/genio.txt      # 比 RISC-V 多 torch、opencc、onnxruntime
+# 模型放 /root/models/uecfood_s512/{best.onnx,labels.txt}；詳見 docs/README-genio.md
 cd Riscv2025_Server_scale_Code
 PLATFORM=genio python3 main.py
 ```
