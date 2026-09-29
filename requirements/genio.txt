@@ -4,3 +4,7 @@ Werkzeug>=2.0.0
 Jinja2>=3.0.0
 torch
 opencc-python-reimplemented
+onnxruntime
+numpy
+Pillow
+gunicorn

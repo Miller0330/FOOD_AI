@@ -1,0 +1,14 @@
+[Unit]
+Description=RIV-FoodAI (Genio 720)
+After=network-online.target
+
+[Service]
+WorkingDirectory=/root/riv-app
+Environment=PLATFORM=genio
+# 換成 Gemma 4 E4B（較慢、與 Matrix 同模型）：
+# Environment=LLM_MODEL=/root/models/gemma-4-E4B-it-Q4_0.gguf
+ExecStart=/usr/bin/python3 main.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
