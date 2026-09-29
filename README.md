@@ -39,7 +39,7 @@
 - **AI 營養師建議**：Gemma4 E4B（NPU）依實際營養數值與缺少的營養素，用口語給 3–4 句建議與具體可補的食物。結果頁先顯示，建議約 20 秒後非同步補上。
 - **結果頁標註**：框線與中文品名由瀏覽器疊在乾淨的原圖上，不顯示信心度（收在「偵測明細」）；不確定的偵測用灰色虛線框、名稱後加「？」，且不計入營養。
 - **體感優化**：Bootstrap 本機化（板子無外網）、上傳前瀏覽器先縮圖到 1280px、送出後鎖按鈕、顯示「伺服器運算時間」與「使用者實際等待」兩種時間。
-- **可選磅秤**：CT1 + HX711，經 `/dev/ttyUSB1`（未接上時系統照常運作，可手動忽略重量）。
+- **可選磅秤**：CT1 + HX711，經 USB 序列埠（`/dev/ttyUSB1`；Matrix 板核心沒有 FTDI 驅動，改由 `pyftdi` 透過 libusb 讀取，見 [7.6](#76-磅秤ft2232-在-matrix-板上的讀取)）。未接上時系統照常運作，可手動忽略重量。
 
 ## 2. 系統架構與 API
 
@@ -185,6 +185,7 @@ cd RIV-FoodAI-Backup
 pip3 install --break-system-packages --no-index --find-links=<wheel資料夾> --target=/data/pylibs flask gunicorn torch
 ```
 服務以 `PYTHONPATH=/data/pylibs` 找到它們。`cv2`、`numpy` 走 apt 安裝，不用放 `/data`。
+磅秤另需 `pyusb`、`pyftdi`、`pyserial`（純 Python，任何平台的 wheel 都能用），安裝方式見 7.6。
 
 ### 7.3 systemd 服務
 `/etc` 是真正的 ext4（不會被清），服務檔放這裡才會開機自動啟動。以下內容就是 repo 的 [`deploy/`](deploy/) 資料夾裡的兩個檔案，部署腳本會自動安裝。
@@ -240,6 +241,46 @@ Realtek 原版寫死 COCO 80 類／640px。修改版新增 `--imgsz <n> --nc <n>
 3. 瀏覽器開首頁，上傳一張水果照，確認：結果頁先出現、框線與中文品名正確、AI 建議約 20 秒後出現在下方卡片。
 4. 在「三餐主食」分頁上傳飯或麵的照片，確認有偵測並算出營養。
 5. 拖動份量滑桿，熱量與營養表會即時變動。
+
+### 7.6 磅秤（FT2232）在 Matrix 板上的讀取
+**現象**：磅秤接上後 `lsusb` 看得到 `0403:6010`（FTDI FT2232），但 `/dev/ttyUSB*` 不存在，`modprobe ftdi_sio` 回報找不到模組。
+**原因**：Matrix 的核心（6.12.38+）沒有編譯任何 USB 序列驅動（沒有 `drivers/usb/serial/`）。
+**做法**：不動核心，改用 `pyftdi` 經 `libusb-1.0`（板子已內建）在使用者空間讀取。`WeightSensor.py` 會自動判斷：
+
+- `/dev/ttyUSB1` 存在 → 走原本的 `pyserial`（RISC-V、Genio 行為不變）。
+- `/dev/ttyUSB1` 不存在 → 改連 `ftdi://0x0403:0x6010/2`（FT2232 的第二個介面）。要換介面時設環境變數 `SCALE_FTDI_URL`（例如 `ftdi://0x0403:0x6010/1`）。
+
+**安裝（只做一次，板子沒網路，wheel 從電腦下載再 `scp`）**：
+
+```bash
+# 板子上先建資料夾：mkdir -p /data/wheels
+# 電腦上
+pip download pyusb pyftdi pyserial --no-deps -d wheels
+scp wheels/* root@192.100.100.2:/data/wheels/
+
+# 板子上
+python3 -m pip install --break-system-packages --no-index --find-links /data/wheels --target /data/pylibs pyusb pyftdi pyserial
+```
+
+**單獨測試讀值**（放上重物，數值應隨之變化；要先確認沒有別的程式佔用該 USB 介面）：
+
+```bash
+PYTHONPATH=/data/pylibs python3 - <<'EOF'
+from pyftdi.serialext import serial_for_url
+s = serial_for_url('ftdi://0x0403:0x6010/2', baudrate=115200, timeout=1)
+for _ in range(10):
+    print(s.readline())
+EOF
+```
+
+**驗證整個系統**：開 `http://192.100.100.2:5000/api/weight`，回傳的 `weight` 應和秤面板一致、`last_update` 不是 `null`。
+
+**已實測（2026-09-29）**：電腦與手機網頁都能讀到與秤面板一致的重量。
+
+**注意**：
+- pyftdi 的 `in_waiting` 不會回報緩衝資料，所以 pyftdi 模式下 `read_weight()` 直接 `readline()`（帶 1 秒 timeout），不看 `in_waiting`；否則會一直「等待超時」。
+- `pyftdi` 佔用該 USB 介面時，其他程式不能同時開它。
+- 這條路徑只在 `/dev/ttyUSB1` 不存在時啟用；若日後 Realtek 補上 `ftdi_sio`，會自動改回一般序列埠，不需改程式。
 
 ## 8. 日常操作
 
@@ -343,7 +384,7 @@ python float_eval.py && python compare_eval.py      # 比較浮點與 NPU 的召
 13. **UEC FOOD 100 僅限非商業研究**；Gemma 與 Realtek 工具鏈各有自己的授權條款，商用前需確認。
 14. **類別順序必須一致**：`labels.txt`、訓練的 `data.yaml`（`training/eval/labels_100.txt`）、`nutrition_data_100_uecfood.json` 的編號排序三者順序要相同；改類別名稱時，`nutrition_data_100_uecfood.json` 的 `english_name` 與程式中的 `name_map_100` 也要同步。
 15. **弱類別的熱量僅供參考**：白飯（recall 僅約 0.13）、生菜沙拉（0.25）、味噌湯（0.36）等，湯與白飯常佔滿整張圖、標註範圍不一致，先天難辨。
-16. **電子秤（CT1）**：預設 `/dev/ttyUSB1`、115200。更換秤重元件需用 `ct1_scale_calibration.ino`（基準重量 `sample_weight = 1500` g）重新校正，再把比例因子填入 `ct1_scale.ino`。USB 供電問題尚未解。
+16. **電子秤（CT1）**：預設 `/dev/ttyUSB1`、115200。Matrix 板核心沒有 FTDI 驅動，改用 `pyftdi` 讀取（7.6）。更換秤重元件需用 `ct1_scale_calibration.ino`（基準重量 `sample_weight = 1500` g）重新校正，再把比例因子填入 `ct1_scale.ino`。USB 供電是否穩定尚未長時間驗證（Matrix 上目前只確認讀值正確）；`dmesg` 裡的 `i2c:1 reset` 是 I2C 驅動的週期性訊息，與 USB 無關，不要誤判成供電問題。
 17. **資安**：`run_server_normal.sh` 內有硬編碼的使用者密碼設定、`run_server_scale.sh` 的註解裡寫有 root 帳號資訊，只適用內網開發板，**正式部署前請移除**，服務也不要暴露到公網。
 18. **不要進版控**：`train_env/`、`UECFOOD100/`、`yolo_full100/`、`dataset100.zip`（約 1GB）、`runs/`、預訓練權重（`yolo11s.pt` 等，Ultralytics 會自動下載）。例外：`training/uecfood_gpu/results/` 的 `best.pt`、`best.onnx` 是刻意納入版控的。
 
@@ -361,7 +402,10 @@ python float_eval.py && python compare_eval.py      # 比較浮點與 NPU 的召
 | 手動跑 `matrixrt_yolo` 報「需要 2 cores」 | 沒加 `--cores 2` | 加上參數 |
 | 重開機後套件找不到 | pip 套件裝在 `/root/.local` | 重裝到 `/data/pylibs` |
 | SSH 突然要密碼／拒絕 | OTA 清掉 `/root/.ssh` | 用序列埠重新寫入公鑰 |
-| 磅秤顯示「串口連接失敗 /dev/ttyUSB1」 | 沒接磅秤（正常） | 系統照常運作；要用磅秤需接上並確認 USB 供電（目前 CT1 供電問題未解，建議用有供電的 hub 排查） |
+| 磅秤顯示「串口連接失敗 /dev/ttyUSB1」 | 沒接磅秤（正常），或 pyftdi 沒裝 | 系統照常運作；要用磅秤需接上並照 7.6 安裝 pyftdi |
+| `lsusb` 有 FT2232 但沒有 `/dev/ttyUSB*` | 核心沒有 `ftdi_sio` 驅動（Matrix 正常現象） | 照 7.6 用 pyftdi，不要找驅動 |
+| `/api/weight` 回 `weight: 0.0`、log「等待超時」 | 舊版程式用 `in_waiting` 判斷，pyftdi 不會回報 | 更新 `WeightSensor.py`（pyftdi 模式直接 `readline()`） |
+| 磅秤讀值偶爾中斷 | USB 供電不穩或線材接觸不良 | 用 `dmesg -w \| grep -iE "usb\|over-current\|disconnect"` 監看；有掉線就改用有外接電源的 USB hub |
 | 板端 NPU 偵測明顯比浮點差 | 校正圖太少或解析度不符 | 用每類 2 張、同解析度的校正圖重新量化 |
 | 系統變得極慢／OOM | 同時跑了兩份 LLM 或別的大程式 | 停掉多餘程序，確認只有 `riv-foodai` |
 
