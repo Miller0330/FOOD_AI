@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>辨識結果 - RISC V 用於食物辨識與營養管理</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>辨識結果 - 食物辨識與營養管理</title>
+    <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f8f9fa;
+            background-color: #f6efe1;
             padding-bottom: 50px;
         }
         .header {
-            background: linear-gradient(135deg, #00923f, #4a8c54);
+            background: linear-gradient(135deg, #ab8158, #8a6642);
             color: white;
             padding: 20px 0;
             margin-bottom: 30px;
@@ -21,19 +21,23 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .card {
+            background-color: #fffbf3;
             border-radius: 15px;
             box-shadow: 0 6px 10px rgba(0,0,0,0.08);
             margin-bottom: 20px;
             border: none;
         }
+        .card .card {
+            background-color: #fcf6ea;
+        }
         .card-header {
-            background: linear-gradient(135deg, #007bff, #6610f2);
-            color: white;
+            background: linear-gradient(135deg, #ddba8b, #c69c68);
+            color: #4a3624;
             border-radius: 15px 15px 0 0 !important;
             padding: 15px;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #007bff, #6610f2);
+            background: linear-gradient(135deg, #c69c68, #ab8158);
             border: none;
             border-radius: 50px;
             padding: 10px 25px;
@@ -41,15 +45,30 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.15);
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, #0069d9, #5b09d4);
+            background: linear-gradient(135deg, #b78b56, #8a6642);
             transform: translateY(-2px);
             transition: all 0.3s ease;
         }
         .result-image {
+            display: block;
             max-width: 100%;
+            height: auto;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
+        .img-wrap { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; line-height: 0; }
+        .det-box { position: absolute; box-sizing: border-box; border: 2px solid #E08A1E; border-radius: 4px; pointer-events: none; }
+        .det-label { position: absolute; left: 0; top: 0; white-space: nowrap;
+                     background: #E08A1E; color: #fff; font-size: 12px; line-height: 1.3; padding: 1px 6px; border-radius: 2px 0 4px 0; }
+        .det-box.c1 { border-color: #2A9D8F; } .det-box.c1 .det-label { background: #2A9D8F; }
+        .det-box.c2 { border-color: #C8553D; } .det-box.c2 .det-label { background: #C8553D; }
+        .det-box.c3 { border-color: #5B6FB5; } .det-box.c3 .det-label { background: #5B6FB5; }
+        .det-box.c4 { border-color: #8E6BB0; } .det-box.c4 .det-label { background: #8E6BB0; }
+        .det-box.uncertain { border: 2px dashed #9AA7B5; } .det-box.uncertain .det-label { background: #9AA7B5; }
+        .progress-bar { background-color: #ab8158; }
+        .form-range::-webkit-slider-thumb { background-color: #ab8158; }
+        .form-range::-moz-range-thumb { background-color: #ab8158; }
+        .form-range:focus::-webkit-slider-thumb { box-shadow: 0 0 0 0.25rem rgba(171, 129, 88, 0.25); }
         .detection-list {
             list-style-type: none;
             padding: 0;
@@ -71,7 +90,7 @@
             background-color: #f2f2f2;
         }
         .badge-count {
-            background-color: #007bff;
+            background-color: #ab8158;
             color: white;
             padding: 5px 10px;
             border-radius: 50px;
@@ -79,28 +98,36 @@
             margin-left: auto;
         }
         .weight-display {
-            background: linear-gradient(135deg, #28a745, #20c997);
+            background: linear-gradient(135deg, #9caf88, #7f9873);
             color: white;
             border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 20px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
+        .weight-cols { display: flex; }
+        .weight-col { flex: 1; text-align: center; padding: 0 8px; }
+        .weight-col + .weight-col { border-left: 1px solid rgba(255,255,255,0.35); }
+        .weight-label { font-size: 14px; font-weight: 600; line-height: 1.4; opacity: 0.95; }
         .weight-value {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: bold;
-            text-align: center;
-            margin: 5px 0;
+            line-height: 1.25;
         }
         .weight-unit {
             font-size: 14px;
+            font-weight: normal;
             opacity: 0.9;
         }
-        .weight-status {
-            text-align: center;
-            margin-top: 5px;
-            font-size: 14px;
+        .weight-foot {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 6px;
+            font-size: 13px;
         }
+        .weight-foot .btn { padding: 1px 10px; font-size: 13px; }
         .status-indicator {
             display: inline-block;
             width: 8px;
@@ -118,17 +145,13 @@
             .header h1 {
                 font-size: 24px;
             }
-            .result-image {
-                max-height: 300px;
-                object-fit: contain;
-            }
         }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="container">
-            <h1>RISC V 用於食物辨識與營養管理</h1>
+            <h1>食物辨識與營養管理</h1>
             <p class="mb-0">辨識結果</p>
         </div>
     </div>
@@ -138,37 +161,37 @@
             <div class="col-md-10">
                 <!-- 重量顯示區域 -->
                 <div class="weight-display">
-                    <div class="row align-items-center">
-                        <div class="col-6">
-                            <h6 class="mb-1">辨識時重量</h6>
+                    <div class="weight-cols">
+                        <div class="weight-col">
+                            <div class="weight-label">辨識時重量</div>
                             <div class="weight-value">{{ result.detection_weight|round(1) }} <span class="weight-unit">g</span></div>
                         </div>
-                        <div class="col-6">
-                            <h6 class="mb-1">當前重量</h6>
+                        <div class="weight-col">
+                            <div class="weight-label">當前重量</div>
                             <div class="weight-value" id="weight-value">0.0 <span class="weight-unit">g</span></div>
-                            <div class="weight-status">
-                                <span class="status-indicator" id="status-indicator"></span>
-                                <span id="connection-status">連接中...</span>
-                            </div>
                         </div>
                     </div>
-                    <div class="text-center mt-3">
-                        <button type="button" class="btn btn-light btn-sm" onclick="updateWeight()">
-                            <span>🔄 刷新重量</span>
-                        </button>
+                    <div class="weight-foot">
+                        <span><span class="status-indicator" id="status-indicator"></span><span id="connection-status">連接中...</span></span>
+                        <button type="button" class="btn btn-light btn-sm" onclick="updateWeight()">🔄 刷新重量</button>
                     </div>
                 </div>
                 
                 <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header">
                         <h5 class="mb-0">辨識結果</h5>
-                        <span class="badge bg-light text-dark">處理時間: {{ result.inference_time }}</span>
                     </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-7 mb-4">
-                                <div class="text-center">
+                                <div class="img-wrap">
                                     <img src="{{ result.result_image }}" alt="辨識結果" class="result-image">
+                                    {% for b in result.boxes %}
+                                    <div class="det-box {{ 'uncertain' if not b.counted else 'c' ~ (loop.index0 % 5) }}"
+                                         style="left: {{ b.x }}%; top: {{ b.y }}%; width: {{ b.w }}%; height: {{ b.h }}%;">
+                                        <span class="det-label">{{ (b.label ~ '？') if not b.counted else b.label }}</span>
+                                    </div>
+                                    {% endfor %}
                                 </div>
                             </div>
                             <div class="col-md-5">
@@ -189,7 +212,7 @@
                                             {% else %}🍽️
                                             {% endif %}
                                         </span>
-                                        <span>{{ class_name }}</span>
+                                        <span>{{ (name_map or {}).get(class_name, class_name) }}</span>
                                         <span class="badge-count">{{ count }} 個</span>
                                     </li>
                                     {% endfor %}
@@ -198,6 +221,11 @@
                                 {% if not result.detections %}
                                 <div class="alert alert-warning" role="alert">
                                     未檢測到任何食物，請嘗試不同的照片或角度。
+                                </div>
+                                {% endif %}
+                                {% if result.low_confidence_count %}
+                                <div class="alert alert-warning small mb-0" role="alert">
+                                    圖中有 {{ result.low_confidence_count }} 個虛線框是不太確定的偵測（名稱後帶「？」），未列入營養計算；若辨識不理想，可換個角度或光線重新拍攝。
                                 </div>
                                 {% endif %}
                             </div>
@@ -220,84 +248,6 @@
                             <div class="col-md-6 mb-4">
                                 <div class="card h-100">
                                     <div class="card-body">
-                                        <h6 class="card-title">總計營養成分</h6>
-                                        <table class="table table-sm">
-                                            <tr>
-                                                <th>熱量</th>
-                                                <td>{{ result.nutrition.calories|round|int }} 大卡</td>
-                                            </tr>
-                                            <tr>
-                                                <th>蛋白質</th>
-                                                <td>{{ result.nutrition.protein|round(1) }} 克</td>
-                                            </tr>
-                                            <tr>
-                                                <th>碳水化合物</th>
-                                                <td>{{ result.nutrition.carbs|round(1) }} 克</td>
-                                            </tr>
-                                            <tr>
-                                                <th>膳食纖維</th>
-                                                <td>{{ result.nutrition.fiber|round(1) }} 克</td>
-                                            </tr>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-4">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <h6 class="card-title">食物明細</h6>
-                                        <div class="table-responsive">
-                                            <table class="table table-sm nutrition-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>食物</th>
-                                                        <th>數量</th>
-                                                        <th>估計重量</th>
-                                                        <th>熱量</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for class_name, count in result.detections.items() %}
-                                                    <tr>
-                                                        <td>{{ class_name }}</td>
-                                                        <td>{{ count }} 個</td>
-                                                        <td>
-                                                            {% if result.detection_weight > 0 %}
-                                                                {{ ((result.detection_weight / result.detections.values()|sum) * count)|round(1) }}g
-                                                            {% else %}
-                                                                標準份量
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>{{ (nutrition_data[class_name].calories * count)|round|int }} 大卡</td>
-                                                    </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card mb-4">
-                    <div class="card-header" style="background: linear-gradient(135deg, #28a745, #20c997);">
-                        <h5 class="mb-0">AI 營養師建議</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-0 fs-5">{{ result.llm_advice if result.llm_advice else "正在分析中..." }}</p>
-                    </div>
-                </div>
-                
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">每日飲食建議</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-4">
-                                <div class="card h-100">
-                                    <div class="card-body">
                                         <h6 class="card-title">營養素攝取比例</h6>
                                         <table class="table table-sm">
                                             <tr>
@@ -306,97 +256,103 @@
                                                 <th>建議量</th>
                                                 <th>達成率</th>
                                             </tr>
+                                            {% for key, label, unit in [('calories', '熱量', '大卡'), ('protein', '蛋白質', '克'), ('carbs', '碳水化合物', '克'), ('fiber', '膳食纖維', '克'), ('fat', '脂肪', '克')] %}
+                                            {% set rec = result.recommendations[key] %}
                                             <tr>
-                                                <td>熱量</td>
-                                                <td>{{ result.recommendations.calories.consumed|round|int }} 大卡</td>
-                                                <td>{{ result.recommendations.calories.recommended|int }} 大卡</td>
+                                                <td>{{ label }}</td>
+                                                <td><span id="n-{{ key }}-val">{{ ('%.0f' % rec.consumed) if key == 'calories' else ('%.1f' % rec.consumed) }}</span> {{ unit }}</td>
+                                                <td>{{ rec.recommended|int }} {{ unit }}</td>
                                                 <td>
                                                     <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.calories.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
+                                                        <div class="progress-bar" id="n-{{ key }}-bar" role="progressbar" style="width: {{ rec.percentage }}%"
+                                                             aria-valuemin="0" aria-valuemax="100"></div>
                                                     </div>
-                                                    <small>{{ result.recommendations.calories.percentage }}%</small>
+                                                    <small><span id="n-{{ key }}-pct">{{ rec.percentage }}</span>%</small>
                                                 </td>
                                             </tr>
-                                            <tr>
-                                                <td>蛋白質</td>
-                                                <td>{{ result.recommendations.protein.consumed|round(1) }} 克</td>
-                                                <td>{{ result.recommendations.protein.recommended|int }} 克</td>
-                                                <td>
-                                                    <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.protein.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
-                                                    </div>
-                                                    <small>{{ result.recommendations.protein.percentage }}%</small>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>碳水化合物</td>
-                                                <td>{{ result.recommendations.carbs.consumed|round(1) }} 克</td>
-                                                <td>{{ result.recommendations.carbs.recommended|int }} 克</td>
-                                                <td>
-                                                    <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.carbs.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
-                                                    </div>
-                                                    <small>{{ result.recommendations.carbs.percentage }}%</small>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>膳食纖維</td>
-                                                <td>{{ result.recommendations.fiber.consumed|round(1) }} 克</td>
-                                                <td>{{ result.recommendations.fiber.recommended|int }} 克</td>
-                                                <td>
-                                                    <div class="progress" style="height: 10px;">
-                                                        <div class="progress-bar" role="progressbar" 
-                                                             aria-valuenow="{{ result.recommendations.fiber.percentage }}" 
-                                                             aria-valuemin="0" aria-valuemax="100">
-                                                        </div>
-                                                    </div>
-                                                    <small>{{ result.recommendations.fiber.percentage }}%</small>
-                                                </td>
-                                            </tr>
+                                            {% endfor %}
                                         </table>
+                                        <div class="small text-muted">
+                                            <p class="mb-0">* 建議每日攝取量基於一般成人標準，實際需求可能因個人差異而不同。</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-6 mb-4">
                                 <div class="card h-100">
                                     <div class="card-body">
-                                        <h6 class="card-title">飲食建議</h6>
-                                        {% if result.recommendations.advice %}
-                                            <ul class="list-group">
-                                                {% for advice in result.recommendations.advice %}
-                                                    <li class="list-group-item">{{ advice }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% else %}
-                                            <div class="alert alert-success">
-                                                您的飲食營養均衡，繼續保持！
-                                            </div>
-                                        {% endif %}
-                                        
-                                        <div class="mt-3 small text-muted">
-                                            <p>* 建議每日攝取量基於一般成人標準，實際需求可能因個人差異而不同。</p>
+                                        <h6 class="card-title">食物明細</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm nutrition-table align-middle">
+                                                <thead>
+                                                    <tr>
+                                                        <th>食物</th>
+                                                        <th style="min-width: 120px;">份量</th>
+                                                        <th>重量</th>
+                                                        <th>熱量</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for item in result.portion_items %}
+                                                    <tr>
+                                                        <td>{{ item.name }}{% if item.count > 1 %}<span class="text-muted small"> ×{{ item.count }}</span>{% endif %}</td>
+                                                        <td>
+                                                            <input type="range" class="form-range portion-range" data-idx="{{ loop.index0 }}"
+                                                                   min="0.25" max="3" step="0.25" value="1" aria-label="{{ item.name }}份量">
+                                                            <div class="small text-muted text-center"><span class="portion-label" data-idx="{{ loop.index0 }}">1.0</span> 份</div>
+                                                        </td>
+                                                        <td><span class="portion-weight" data-idx="{{ loop.index0 }}">{{ item.weight_g|round(1) }}</span>g</td>
+                                                        <td><span class="portion-cal" data-idx="{{ loop.index0 }}">{{ (item.per100.calories * item.weight_g / 100)|round|int }}</span> 大卡</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
                                         </div>
+                                        <div class="small text-muted">拖動滑桿調整實際吃的份量，營養數字會即時更新。</div>
+                                        <button type="button" id="portion-reset" class="btn btn-outline-secondary btn-sm mt-2 d-none">還原份量</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                <div class="card mb-4">
+                    <div class="card-header" style="background: linear-gradient(135deg, #b98b5e, #96714a); color: white;">
+                        <h5 class="mb-0">AI 營養師建議</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if result.advice_token %}
+                        <p class="mb-0 fs-5 text-muted" id="advice-text" data-token="{{ result.advice_token }}">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>AI 營養師分析中，請稍候…
+                        </p>
+                        <div class="small text-muted mt-1" id="advice-time"></div>
+                        {% else %}
+                        <p class="mb-0 fs-5">{{ result.llm_advice if result.llm_advice else "正在分析中..." }}</p>
+                        {% endif %}
+                        <div class="small text-muted mt-1 d-none" id="advice-portion-note">你已調整份量，上方建議是依調整前的份量產生的。</div>
+                    </div>
+                </div>
+
                 {% endif %}
-                
+
                 <div class="text-center">
                     <a href="/" class="btn btn-primary">
                         <span>重新辨識</span>
                     </a>
+                    {% if result.total_time %}
+                    <div class="mt-2 small text-muted">
+                        伺服器運算時間: {{ result.total_time }}
+                        <span id="client-wait-time"></span>
+                        {% if result.boxes %}
+                        <details class="mt-2">
+                            <summary style="cursor: pointer;">偵測明細</summary>
+                            <div class="mt-1">
+                                {% for b in result.boxes %}{{ b.label }}　信心度 {{ b.confidence }}{{ '' if b.counted else '（未列入計算）' }}<br>{% endfor %}
+                            </div>
+                        </details>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -439,9 +395,115 @@
         document.addEventListener('DOMContentLoaded', function() {
             // 可以在這裡添加其他初始化邏輯
             console.log('頁面已載入，請點擊刷新按鈕獲取重量');
+
+            // 算出「使用者實際等待時間」：從index.html按下辨識按鈕的當下，到這個結果頁面渲染完成為止，
+            // 涵蓋上傳圖片、伺服器運算、下載結果頁面的全部時間——跟上面「伺服器運算時間」互相對照，
+            // 兩者差距大就代表瓶頸在網路/上傳/頁面渲染，不在LLM/偵測器本身
+            try {
+                const clickTime = sessionStorage.getItem('detect_click_time');
+                if (clickTime) {
+                    const waitSeconds = ((Date.now() - parseInt(clickTime, 10)) / 1000).toFixed(1);
+                    document.getElementById('client-wait-time').textContent = `｜使用者實際等待: ${waitSeconds}s`;
+                    sessionStorage.removeItem('detect_click_time');
+                }
+            } catch (e) {}
+
+        });
+
+        // 詳細處理時間（用瀏覽器內建Performance API，不需要額外伺服器支援）：
+        // 如果「使用者實際等待」還是遠大於「伺服器運算時間」，點開看到底卡在
+        // 上傳/等首個位元組(TTFB)、還是頁面本身下載、還是CSS/JS/圖片這些子資源。
+        // 必須等 load 事件（而不是 DOMContentLoaded）才讀 loadEventEnd，
+        // 不然這個值還沒寫入、會是0，算出來的時間會變成負數。
+        // 份量滑桿：只在前端用「每100g營養值 × 調整後重量」重算，不必重新辨識
+        (function () {
+            const ranges = document.querySelectorAll('.portion-range');
+            if (!ranges.length) return;
+            const ITEMS = {{ (result.portion_items or [])|tojson }};
+            const TARGETS = {{ {'calories': result.recommendations.calories.recommended, 'protein': result.recommendations.protein.recommended,
+                                'carbs': result.recommendations.carbs.recommended, 'fiber': result.recommendations.fiber.recommended,
+                                'fat': result.recommendations.fat.recommended}|tojson }};
+            const NUT = ['calories', 'protein', 'carbs', 'fiber', 'fat'];
+            const mult = ITEMS.map(() => 1);
+            const at = (cls, i) => document.querySelector(`.${cls}[data-idx="${i}"]`);
+            function recalc() {
+                const tot = { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 };
+                ITEMS.forEach((it, i) => {
+                    const w = it.weight_g * mult[i];
+                    NUT.forEach(k => { tot[k] += it.per100[k] * w / 100; });
+                    at('portion-label', i).textContent = mult[i].toFixed(2).replace(/0$/, '');
+                    at('portion-weight', i).textContent = w.toFixed(1);
+                    at('portion-cal', i).textContent = Math.round(it.per100.calories * w / 100);
+                });
+                NUT.forEach(k => {
+                    const pct = Math.min(100, Math.round(tot[k] / TARGETS[k] * 1000) / 10);
+                    document.getElementById('n-' + k + '-val').textContent = k === 'calories' ? Math.round(tot[k]) : tot[k].toFixed(1);
+                    document.getElementById('n-' + k + '-bar').style.width = pct + '%';
+                    document.getElementById('n-' + k + '-pct').textContent = pct;
+                });
+                const changed = mult.some(m => m !== 1);
+                document.getElementById('portion-reset').classList.toggle('d-none', !changed);
+                const note = document.getElementById('advice-portion-note');
+                if (note) note.classList.toggle('d-none', !changed);
+            }
+            ranges.forEach(rg => rg.addEventListener('input', () => { mult[+rg.dataset.idx] = parseFloat(rg.value); recalc(); }));
+            document.getElementById('portion-reset').addEventListener('click', () => {
+                ranges.forEach(rg => { rg.value = 1; });
+                mult.fill(1);
+                recalc();
+            });
+        })();
+
+        // AI建議非同步取得：必須等 load（結果圖等資源都載完）才發請求，
+        // 因為伺服器單一worker，LLM請求會佔住worker，太早發會讓結果圖排在後面等。
+        window.addEventListener('load', function() {
+            const adviceEl = document.getElementById('advice-text');
+            if (!adviceEl) return;
+            fetch('/api/advice/' + adviceEl.dataset.token)
+                .then(r => r.json())
+                .then(data => {
+                    adviceEl.classList.remove('text-muted');
+                    if (data.success) {
+                        adviceEl.textContent = data.advice;
+                        document.getElementById('advice-time').textContent = `AI 建議生成時間: ${data.seconds}s`;
+                    } else {
+                        adviceEl.textContent = data.error || '建議取得失敗';
+                    }
+                })
+                .catch(() => {
+                    adviceEl.classList.remove('text-muted');
+                    adviceEl.textContent = 'AI 建議取得失敗，請重新辨識';
+                });
+        });
+
+        window.addEventListener('load', function() {
+            try {
+                const nav = performance.getEntriesByType('navigation')[0];
+                if (!nav) return;
+
+                const lines = [];
+                lines.push(`上傳+等伺服器回應(TTFB): ${(nav.responseStart - nav.requestStart).toFixed(0)}ms`);
+                lines.push(`下載結果頁面HTML: ${(nav.responseEnd - nav.responseStart).toFixed(0)}ms`);
+                lines.push(`頁面解析+子資源載入: ${(nav.loadEventEnd - nav.responseEnd).toFixed(0)}ms`);
+
+                const resources = performance.getEntriesByType('resource')
+                    .filter(r => r.duration > 200)
+                    .sort((a, b) => b.duration - a.duration)
+                    .slice(0, 5);
+                resources.forEach(r => {
+                    const name = r.name.split('/').pop().split('?')[0];
+                    lines.push(`　子資源 ${name}: ${r.duration.toFixed(0)}ms`);
+                });
+
+                const detail = document.createElement('details');
+                detail.className = 'small text-muted mt-2';
+                detail.innerHTML = `<summary style="cursor:pointer;">詳細處理時間</summary><div class="mt-1">${lines.join('<br>')}</div>`;
+                const anchor = document.getElementById('client-wait-time');
+                if (anchor) anchor.after(detail);
+            } catch (e) {}
         });
     </script>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
 </body>
 </html>

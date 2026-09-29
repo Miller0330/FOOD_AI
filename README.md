@@ -1,105 +1,70 @@
-# RIV-FoodAI-Y2
+# RIV-FoodAI｜多平台食物辨識與營養估算
 
-本專案旨在建立一套可在 RISC-V 開發板或桌面伺服器上運行的食品影像偵測與營養估算系統。專案內容包含資料集建立、YOLO 模型訓練、推理伺服器、以及（可選）磅秤重量整合，讓使用者能上傳照片、取得食品辨識結果、並根據實際重量計算營養成分與飲食建議。
+拍照 → 偵測食物 → （搭配磅秤重量）估算熱量與營養 → 由板端 LLM 產生飲食建議。
+同一份程式支援三種硬體平台，用**硬體抽象層（HAL）**把「應用層」與「平台專屬的推論／LLM」分開：
 
-## 特色
-- 使用輕量化 TFLite 模型（float16）做影像偵測
-- 支援上傳圖片後在伺服器上推理並產生標註結果圖
-- 若有外接磅秤（CT1 + HX711），可整合重量計算更精準的營養估算
-- 提供 REST API 以供前端或行動裝置呼叫
+| 平台 | 板子 | LLM | 偵測 | 辨識類別 |
+|---|---|---|---|---|
+| `riscv` | RISC-V（Qilai EVB／HiFive，原 `main`） | llama.cpp riscv64（`llama-cli-new`）＋ Qwen2.5-0.5B ＋ prompt cache | torch（CPU）9 類 | 水果／零食 9 類 |
+| `genio` | MediaTek Genio 720（ARM64 Linux） | llama.cpp b10964（`llama-completion`）＋ prompt cache | torch（CPU）9 類 | 水果／零食 9 類 |
+| `matrix` | Realtek Matrix RTD2811（Ubuntu 24.04） | Gemma4 E4B（NPU，`MatriXRT-llm-cli`） | 9 類（CPU）＋ **100 類 YOLO11s（NPU）** | 9 類＋三餐主食 100 類 |
 
-## 硬體／教材設備
-- HiFive Unmatched Rev B（或任意能執行 TFLite 的開發板/主機）
-- USB 傳輸線（視設備而定）
-- MicroSD 卡（若在開發板上使用）
-- 網路攝影機（例如 Logitech C270）或上傳的相片檔案
-- （可選）CT1 磅秤 + HX711 模組，用於讀取重量
+各平台的 UI、營養計算、營養資料庫、份量滑桿等**完全共用**；只有 LLM 與 100 類 NPU 偵測是各平台自己的。
 
-## 專案結構（重點目錄與檔案）
-根目錄包含幾個重要子資料夾，說明如下：
+## 如何選擇平台
+環境變數 `PLATFORM=riscv|genio|matrix`。沒設定時：依板子特徵檔案自動偵測，再不行**預設 `riscv`**（＝整併前 `main` 的行為）。
+啟動時第一行會印出 `[HAL] 平台 = … （來源：env / autodetect:… / default）`。設了不支援的值會直接報錯，不會靜默退回。
 
-- `Riscv2025_Server_Code/` - 推理伺服器（無重量整合）
-	- `main.py` - Flask 應用入口（影像上傳、偵測、營養計算）
-	- `Detector.py` - TFLite 偵測器封裝
-	- `Calculate.py` - 營養計算與飲食建議邏輯
-	- `detectv2_float16.tflite` - 預訓練的 TFLite 模型
-	- `nutrition_data.json` - 食物對應營養資料（以 100g 為基準）
-	- `static/`, `templates/` - 前端靜態檔與模板
+## 快速開始
 
-- `Riscv2025_Server_scale_Code/` - 推理伺服器（含秤重整合）
-	- 與上面相似，另外包含 `WeightSensor.py`，以及在 `main.py` 中處理來自磅秤的重量讀取與 API。
-
-- `Riscv2025_CT1_scale/` - Arduino (或相容) 程式碼（CT1 磅秤）
-
-## 快速開始（在開發機或伺服器上）
-以下指令假設您使用 Windows PowerShell 並在專案根目錄執行：
-
-1. 建議建立與啟用虛擬環境（可選）：
-
-```powershell
-python -m venv .venv; .\.venv\Scripts\Activate.ps1
-```
-
-2. 安裝 Python 依賴：
-
-```powershell
-pip install -r requirements.txt
-```
-
-3. 啟動推理伺服器（以含秤重的版本為例）：
-
-```powershell
-cd Riscv2025_Server_scale_Code; python main.py
-```
-
-伺服器預設監聽在 `http://0.0.0.0:5000`。在本機測試時可開啟瀏覽器並造訪 `http://127.0.0.1:5000`。
-
-## 使用說明
-- 首頁（`/`）提供上傳圖片的介面，可同時在表單填入 `weight`（克）數值，或使用實際連接的磅秤讀取。
-- 圖像上傳後會執行偵測並在結果頁顯示：偵測項目、結果圖、推理時間、估算營養成分與飲食建議。
-
-### API
-- 取得即時磅秤重量：
-	- GET `/api/weight` → 回傳 JSON
-- 根據食物類型與重量計算營養：
-	- POST `/api/nutrition/calculate` (JSON body: `{ "food_type": "apple", "weight": 150 }`)
-
-回傳範例（成功）：
-
-```json
-{
-	"success": true,
-	"data": {
-		"food_type": "apple",
-		"weight": 150,
-		"nutrition": { /* 計算後的營養數值 */ },
-		"recommendations": { /* 飲食建議 */ }
-	}
-}
-```
-
-## nutrition_data.json
-- 此檔案存放每種食物對應的營養素（以 100g 為基準）。伺服器會根據傳入的重量比例放大或縮小。
-
-## 模型與偵測器
-- `detectv2_float16.tflite` 為已量化的 TFLite 模型，`Detector.py` 封裝了解析推理、NMS 與繪圖的流程。
-
-## 磅秤整合（可選）
-- `WeightSensor.py` 包含初始化與讀取磅秤的程式（例如透過串列或 GPIO 與 HX711 通訊）。
-- 若啟動時找不到實體裝置，後端會記錄錯誤並允許系統在沒有硬體的情況下繼續運作（可手動輸入重量）。
-
-## 開發與貢獻
-- 若要新增食物類別，請在 `nutrition_data.json` 新增對應條目，並在訓練資料集上加入該類別再重新訓練模型。
-- 建議拉取 issue / PR 的流程與檢查項目：模型正確性、API 相容、相容性測試（含有無磅秤情境）。
-
-## 快速啟動腳本
-- `run_server_normal.sh`
+### RISC-V（維持原本用法，不需要設定任何東西）
 ```bash
-chmod +x run_server_normal.sh
-./run_server_normal.sh
+git clone <本 repo> && cd <repo>            # 可加 GIT_LFS_SKIP_SMUDGE=1，RISC-V 用不到 LFS 大檔
+pip3 install -r requirements.txt            # 根目錄的 requirements.txt 完全沒有改動
+cd Riscv2025_Server_scale_Code
+python3 main.py                             # 監聽 0.0.0.0:5000；啟動時暖機 LLM，跟以前一樣
+```
+`run_server_normal.sh`、`run_server_scale.sh`、`requirements.txt` 與整併前逐位元組相同。詳細原始說明保留在 [`docs/README-riscv.md`](docs/README-riscv.md)。
+
+### Genio 720
+```bash
+pip3 install -r requirements/genio.txt      # 比 RISC-V 多 torch、opencc
+cd Riscv2025_Server_scale_Code
+PLATFORM=genio python3 main.py
 ```
 
+### Realtek Matrix
+見 [`docs/README-matrix.md`](docs/README-matrix.md)（連線、部署、systemd、模型、疑難排解）。一鍵部署：
 ```bash
-chmod +x run_server_scale.sh
-./run_server_scale.sh
+git lfs pull                                # NPU 模型以 Git LFS 存放
+./deploy/matrix/deploy_to_board.sh          # 服務檔已設定 PLATFORM=matrix
 ```
+
+## 專案結構
+```
+Riscv2025_Server_scale_Code/       ← 執行目錄（RISC-V 腳本會 cd 進來，路徑不變）
+  main.py                          統一入口；只依賴 hal 的介面
+  food_logic.py                    營養計算、框線資料、份量、非同步建議暫存（與硬體無關）
+  Calculate.py  Detector.py  WeightSensor.py   共用（Detector、WeightSensor 與整併前完全相同）
+  nutrition_data.json              9 類營養資料（USDA）
+  templates/  static/vendor/       前端（本機化 Bootstrap，不依賴外網）
+  hal/                             介面（LLMBackend、Platform）與平台選擇
+  platforms/riscv|genio|matrix/    各平台的 LLM（與其他平台程式互不 import）；matrix 另有 100 類偵測器與營養資料
+  LLMAdvisor.py                    相容層（舊程式碼 `from LLMAdvisor import ...` 仍可用）
+requirements.txt                   原檔不動（RISC-V 用）
+requirements/                      common、riscv（等同根目錄）、genio、matrix
+deploy/matrix/                     Matrix 專用部署腳本與 systemd 服務檔
+models/uecfood_s512/               100 類 NPU 模型（Git LFS）
+training/                          訓練（GPU）與 NPU 對浮點驗證腳本
+tests/                             整併的測試（不需要硬體）
+docs/                              各平台 README、HAL 架構、雙平台驗證清單
+```
+
+## 文件
+- [`docs/HAL_ARCHITECTURE.md`](docs/HAL_ARCHITECTURE.md)：架構、如何新增平台、保護 RISC-V 的機制
+- [`docs/VERIFICATION.md`](docs/VERIFICATION.md)：**RISC-V／Genio／Matrix 的啟動與驗證清單**
+- [`docs/README-riscv.md`](docs/README-riscv.md)、[`docs/README-matrix.md`](docs/README-matrix.md)
+- 測試：`python -m unittest discover -s tests -v`（需要 flask、opencv、numpy、pyserial）
+
+## 授權與資料來源
+UEC FOOD 100 僅限非商業研究；USDA FoodData Central 為公有領域；Gemma、Realtek 工具鏈、Ultralytics YOLO（AGPL-3.0）依各自條款。

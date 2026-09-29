@@ -1,0 +1,13 @@
+[Unit]
+Description=Restore patched matrixrt_yolo (multi-class decoder) after OTA/reboot wipes /opt
+After=local-fs.target
+Before=riv-foodai.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/cp /data/matrixrt_yolo_patched/matrixrt_yolo_bin /opt/matrix/bin/matrixrt_yolo
+ExecStartPost=/bin/chmod +x /opt/matrix/bin/matrixrt_yolo
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
