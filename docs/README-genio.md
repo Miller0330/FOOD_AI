@@ -35,6 +35,22 @@ PLATFORM=genio python3 main.py               # 監聽 0.0.0.0:5000
 | 建議生成：Qwen2.5-3B Q4_0 | 30.8 s | — |
 | 建議生成：Gemma 4 E4B Q4_0（同 Matrix 模型） | 59.4 s（約 4.9 tok/s） | 約 20 s |
 
+## 加速嘗試紀錄（2026-09-30，Qwen2.5-3B Q4_0，預填 / 解碼 tok/s）
+| 方法 | 結果 |
+|---|---|
+| CPU 8 執行緒（基準） | 40.8 / 8.6 |
+| 調速器改 performance（已寫入 systemd） | 45.5 / 8.8（約 +10%） |
+| 僅用 2 大核（CPU6、7） | 32.7 / 8.6（較差） |
+| 批次 -ub 512 + flash attention | 46.7（+2%） |
+| llama.cpp b11284 新版 CPU 後端 | 45.1 / 8.9（無差異） |
+| Vulkan 讀 Mali-G57（b11284，-ngl 99） | 0.78 / 1.73（慢很多，無 int dot / matrix core） |
+| 推測式解碼（0.5B 草稿模型，draft-simple） | 解碼 4.3（比 8.6 慢，接受率約 31%） |
+| 偵測器 onnxruntime 執行緒 4 / 6 / 8 | 635 / 463 / 362 ms（8 最快） |
+
+結論：CPU 已到上限，GPU（Vulkan）與推測式解碼皆無效。進一步加速需 NPU：
+- 板上有 `neuronrt`、Neuron 8.2.16 執行庫、`/dev/apusys`，但只能執行離線編譯好的 `.dla`；編譯器 `ncc-tflite` 在主機端 SDK，需廠商權限。
+- 映像 Rity 25.1 沒有官方 `llm_cmdline_tool`（LLM 的 NPU 路徑）。
+
 ## 已知限制
 - 磅秤（CT1）尚未在 Genio 上實測（測試時未接上；`/dev/ttyUSB*` 不存在）。
 - `/detect`（9 類）與 `/detect100` 仍是分開的入口，與 Matrix 一致。
