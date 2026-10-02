@@ -5,6 +5,7 @@ MODEL = os.environ.get('LLM_MODEL', '/root/models/gemma-4-E4B-it-Q4_0.gguf')
 PROMPT_FILE = os.environ.get('PROMPT_FILE', '/root/bench/prompt.txt')
 N_RUNS = int(os.environ.get('N_RUNS', '5'))
 N_PREDICT = int(os.environ.get('N_PREDICT', '128'))
+NATURAL = os.environ.get('NATURAL', '0') == '1'
 THREADS = os.environ.get('THREADS', '8')
 PORT = '8090'
 
@@ -39,7 +40,7 @@ def post(body):
 
 
 def main():
-    user = open(PROMPT_FILE, encoding='utf-8').read().strip()
+    user = ' '.join(open(PROMPT_FILE, encoding='utf-8').read().split())
     env = dict(os.environ, LD_LIBRARY_PATH=LLAMA_DIR)
     log = open('/tmp/bench_srv.log', 'w')
     p = subprocess.Popen([LLAMA_DIR + '/llama-server', '-m', MODEL, '-t', THREADS, '-c', '2048',
@@ -53,8 +54,8 @@ def main():
             except Exception:
                 time.sleep(2)
         print('load_s %.1f' % (time.time() - t0), 'governor', governor(), 'temp_start', temps(), flush=True)
-        body = {'prompt': wrap(user), 'n_predict': N_PREDICT, 'temperature': 0, 'seed': 1,
-                'ignore_eos': True, 'cache_prompt': False}
+        body = {'prompt': wrap(user), 'n_predict': 400 if NATURAL else N_PREDICT, 'temperature': 0, 'seed': 1,
+                'ignore_eos': not NATURAL, 'cache_prompt': False}
         rows = []
         for i in range(N_RUNS + 1):
             t = time.time()
