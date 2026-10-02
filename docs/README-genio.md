@@ -39,11 +39,11 @@ PLATFORM=genio python3 main.py               # 監聽 0.0.0.0:5000
 | 項目 | Genio 720（CPU） | Matrix（NPU） |
 |---|---|---|
 | 偵測：常駐推論（30 次） | 350.0 ms（σ 2.5） | NPU 純推論 12.5 ms |
-| 偵測：每次呼叫含載入 | 約 590 ms（整個請求） | 414 ms（σ 1.5，每次重載模型） |
+| 偵測：每次呼叫（含載入） | 約 590 ms（整個請求） | 舊版 414 ms（每次重載模型）→ 常駐版 **26.0 ms**（σ 0.3，重開機後驗證） |
 | LLM Gemma 4 E4B 牆鐘（約 245 token 輸入） | 52.0 s（σ 0.07，Q4_0） | 32.5 s（σ 0.01，Q6_K，TTFT 1.67 s） |
 | LLM 解碼速度 | 4.7 tok/s | 約 5.5 tok/s（估算） |
 
-測試腳本見 `benchmark/`。
+測試腳本見 `benchmark/`。Matrix 常駐偵測程序 `matrixrt_yolod`（原始碼與編譯腳本在 `platforms/matrix/yolod/`，安裝於 `/data/yolod/`，因 `/opt` 的修改重開機後不保留）。
 
 ## 加速嘗試紀錄（2026-09-30，Qwen2.5-3B Q4_0，預填 / 解碼 tok/s）
 | 方法 | 結果 |
