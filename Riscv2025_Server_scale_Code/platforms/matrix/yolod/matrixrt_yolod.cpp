@@ -19,6 +19,7 @@
 using namespace matrixrt;
 namespace {
 int MODEL_W = 512, MODEL_H = 512, NUM_CLASSES = 100, NUM_ANCHORS = 0;
+bool LETTERBOX = false, MULTI = false;
 struct BBox { float x1, y1, x2, y2, score; int class_id; };
 
 std::shared_ptr<uint8_t> page_alloc(size_t size) {
@@ -28,7 +29,16 @@ std::shared_ptr<uint8_t> page_alloc(size_t size) {
 }
 void preprocess(const cv::Mat& bgr, uint8_t* out) {
     cv::Mat r, rgb;
-    cv::resize(bgr, r, cv::Size(MODEL_W, MODEL_H), 0, 0, cv::INTER_LINEAR);
+    if (LETTERBOX) {
+        float sc = std::min((float)MODEL_W / bgr.cols, (float)MODEL_H / bgr.rows);
+        int nw = (int)std::lround(bgr.cols * sc), nh = (int)std::lround(bgr.rows * sc);
+        r = cv::Mat(MODEL_H, MODEL_W, CV_8UC3, cv::Scalar(114, 114, 114));
+        cv::Mat small;
+        cv::resize(bgr, small, cv::Size(nw, nh), 0, 0, cv::INTER_LINEAR);
+        small.copyTo(r(cv::Rect((MODEL_W - nw) / 2, (MODEL_H - nh) / 2, nw, nh)));
+    } else {
+        cv::resize(bgr, r, cv::Size(MODEL_W, MODEL_H), 0, 0, cv::INTER_LINEAR);
+    }
     cv::cvtColor(r, rgb, cv::COLOR_BGR2RGB);
     size_t plane = (size_t)MODEL_W * MODEL_H;
     std::vector<cv::Mat> ch; cv::split(rgb, ch);
@@ -53,14 +63,22 @@ std::vector<BBox> nms(std::vector<BBox>& v, float t) {
 std::vector<BBox> decode(const float* d, float conf, float iou_t) {
     std::vector<BBox> cand;
     for (int a = 0; a < NUM_ANCHORS; ++a) {
-        float ms = 0.f; int mc = 0;
-        for (int c = 0; c < NUM_CLASSES; ++c) { float s = d[(4 + c) * NUM_ANCHORS + a]; if (s > ms) { ms = s; mc = c; } }
-        if (ms < conf) continue;
         float cx = d[a], cy = d[NUM_ANCHORS + a], w = d[2 * NUM_ANCHORS + a], h = d[3 * NUM_ANCHORS + a];
-        cand.push_back({std::max(0.f, cx - w / 2), std::max(0.f, cy - h / 2),
-                        std::min((float)MODEL_W, cx + w / 2), std::min((float)MODEL_H, cy + h / 2), ms, mc});
+        auto push = [&](float sc, int c) {
+            cand.push_back({std::max(0.f, cx - w / 2), std::max(0.f, cy - h / 2),
+                            std::min((float)MODEL_W, cx + w / 2), std::min((float)MODEL_H, cy + h / 2), sc, c});
+        };
+        if (MULTI) {
+            for (int c = 0; c < NUM_CLASSES; ++c) { float s = d[(4 + c) * NUM_ANCHORS + a]; if (s >= conf) push(s, c); }
+        } else {
+            float ms = 0.f; int mc = 0;
+            for (int c = 0; c < NUM_CLASSES; ++c) { float s = d[(4 + c) * NUM_ANCHORS + a]; if (s > ms) { ms = s; mc = c; } }
+            if (ms >= conf) push(ms, mc);
+        }
     }
-    return nms(cand, iou_t);
+    auto kept = nms(cand, iou_t);
+    if (MULTI && kept.size() > 300) kept.resize(300);
+    return kept;
 }
 std::vector<std::string> load_labels(const std::string& p) {
     std::vector<std::string> o; std::ifstream f(p); std::string l;
@@ -80,6 +98,8 @@ int main(int argc, char** argv) {
         else if (a == "--cores" && i + 1 < argc) cores = std::stoi(argv[++i]);
         else if (a == "--conf" && i + 1 < argc) conf = std::stof(argv[++i]);
         else if (a == "--iou" && i + 1 < argc) iou_t = std::stof(argv[++i]);
+        else if (a == "--letterbox") LETTERBOX = true;
+        else if (a == "--multi") MULTI = true;
         else { std::cerr << "unknown flag " << a << "\n"; return 2; }
     }
     try {
@@ -116,14 +136,19 @@ int main(int argc, char** argv) {
             std::string img = line, outp; auto tab = line.find('\t');
             if (tab != std::string::npos) { img = line.substr(0, tab); outp = line.substr(tab + 1); }
             cv::Mat bgr = cv::imread(img, cv::IMREAD_COLOR);
+            double t_read = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T0).count();
             if (bgr.empty()) { std::cout << "@@ERR cannot read image " << img << std::endl; continue; }
             try {
+                auto tp0 = std::chrono::steady_clock::now();
                 preprocess(bgr, in_buf.get());
                 auto t0 = std::chrono::steady_clock::now();
+                double t_pre = std::chrono::duration<double, std::milli>(t0 - tp0).count();
                 auto job = configured.run_async(bindings).expect("run_async");
                 if (job.wait(std::chrono::milliseconds(10000)) != MATRIX_SUCCESS) throw std::runtime_error("wait timeout");
                 double inf = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                auto td0 = std::chrono::steady_clock::now();
                 auto dets = decode((const float*)out_buf.get(), conf, iou_t);
+                double t_dec = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - td0).count();
                 for (size_t i = 0; i < dets.size(); ++i) {
                     auto& b = dets[i];
                     std::string nm = b.class_id < (int)labels.size() ? labels[b.class_id] : "class_" + std::to_string(b.class_id);
@@ -135,7 +160,7 @@ int main(int argc, char** argv) {
                     cv::imwrite(outp, canvas);
                 }
                 double tot = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T0).count();
-                printf("@@END %.2f %.2f\n", inf, tot); fflush(stdout);
+                printf("@@END %.2f %.2f read=%.2f pre=%.2f dec=%.2f\n", inf, tot, t_read, t_pre, t_dec); fflush(stdout);
             } catch (const std::exception& e) { std::cout << "@@ERR " << e.what() << std::endl; }
         }
     } catch (const std::exception& e) { std::cerr << "fatal: " << e.what() << "\n"; return 1; }
