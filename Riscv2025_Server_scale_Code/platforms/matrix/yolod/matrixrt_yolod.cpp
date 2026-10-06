@@ -19,7 +19,7 @@
 using namespace matrixrt;
 namespace {
 int MODEL_W = 512, MODEL_H = 512, NUM_CLASSES = 100, NUM_ANCHORS = 0;
-bool LETTERBOX = false, MULTI = false;
+bool LETTERBOX = false, MULTI = false, REMAP = false;
 struct BBox { float x1, y1, x2, y2, score; int class_id; };
 
 std::shared_ptr<uint8_t> page_alloc(size_t size) {
@@ -100,6 +100,7 @@ int main(int argc, char** argv) {
         else if (a == "--iou" && i + 1 < argc) iou_t = std::stof(argv[++i]);
         else if (a == "--letterbox") LETTERBOX = true;
         else if (a == "--multi") MULTI = true;
+        else if (a == "--remap") REMAP = true;
         else { std::cerr << "unknown flag " << a << "\n"; return 2; }
     }
     try {
@@ -148,6 +149,17 @@ int main(int argc, char** argv) {
                 double inf = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
                 auto td0 = std::chrono::steady_clock::now();
                 auto dets = decode((const float*)out_buf.get(), conf, iou_t);
+                if (LETTERBOX && REMAP) {
+                    // letterbox space -> original image stretched to MODEL_WxMODEL_H (what the web overlay expects)
+                    float sc = std::min((float)MODEL_W / bgr.cols, (float)MODEL_H / bgr.rows);
+                    int nw = (int)std::lround(bgr.cols * sc), nh = (int)std::lround(bgr.rows * sc);
+                    float ox = (float)((MODEL_W - nw) / 2), oy = (float)((MODEL_H - nh) / 2);
+                    for (auto& b : dets) {
+                        auto fx = [&](float v) { return std::min((float)MODEL_W, std::max(0.f, (v - ox) / sc * MODEL_W / bgr.cols)); };
+                        auto fy = [&](float v) { return std::min((float)MODEL_H, std::max(0.f, (v - oy) / sc * MODEL_H / bgr.rows)); };
+                        b.x1 = fx(b.x1); b.x2 = fx(b.x2); b.y1 = fy(b.y1); b.y2 = fy(b.y2);
+                    }
+                }
                 double t_dec = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - td0).count();
                 for (size_t i = 0; i < dets.size(); ++i) {
                     auto& b = dets[i];

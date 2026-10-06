@@ -22,6 +22,8 @@ LABELS_PATH = '/data/models/uecfood_s512/labels.txt'
 IMG_SIZE = 512
 NUM_CLASSES = 100
 NPU_CORES = 2
+# letterbox 前處理與訓練一致（板上驗證集 mAP50 0.682 -> 0.719）；框座標由常駐程式換算回「拉伸 512x512」座標。YOLOD_LETTERBOX=0 可退回舊做法。
+USE_LETTERBOX = os.environ.get('YOLOD_LETTERBOX', '1') != '0'
 DAEMON_STARTUP_TIMEOUT = 30
 DAEMON_REQUEST_TIMEOUT = 15
 
@@ -74,7 +76,7 @@ class _Daemon:
         self.proc = subprocess.Popen(
             [MATRIXRT_YOLOD_BIN, MODEL_PATH, '-c', LABELS_PATH,
              '--imgsz', str(IMG_SIZE), '--nc', str(NUM_CLASSES), '--cores', str(NPU_CORES),
-             '--conf', str(self.conf), '--iou', str(self.iou)],
+             '--conf', str(self.conf), '--iou', str(self.iou)] + (['--letterbox', '--remap'] if USE_LETTERBOX else []),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
         self.buf = b''
         self._read_until(b'@@READY', DAEMON_STARTUP_TIMEOUT)
