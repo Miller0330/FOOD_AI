@@ -1,7 +1,7 @@
 """
 與模型無關的共用邏輯（營養計算、結果頁疊圖資料、份量滑桿資料、非同步 AI 建議暫存、上傳資料夾清理）。
 
-刻意不 import 任何偵測器或 LLM：各板子（Realtek Matrix / Qilai EVB / Genio 720）自己的
+刻意不 import 任何偵測器或 LLM：各板子（Realtek Matrix / Andes Voyager / Genio 720）自己的
 Detector、LLMAdvisor、模型檔完全不受影響，只需要在 main.py 的 /detect 呼叫這裡的函式。
 整合方式見 SHARED_UI_INTEGRATION.md。
 """

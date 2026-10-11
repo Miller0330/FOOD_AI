@@ -50,8 +50,8 @@ MIN_CONFIDENCE_FOR_NUTRITION = 0.5  # 偵測器本身的門檻只有0.25(為了�
                                      # 但信心值太低的偵測不該被算進營養總量，容易誤導使用者
 
 # 上傳資料夾最多保留幾個檔案。Matrix 預設 200（長期執行避免吃光儲存空間）；
-# RISC-V / Genio 預設 0 = 不清理（維持整併前的行為）。可用環境變數 MAX_KEPT_UPLOADS 覆寫。
-MAX_KEPT_UPLOADS = int(os.environ.get('MAX_KEPT_UPLOADS', '200' if hw.name == 'matrix' else '0'))
+# Matrix / RISC-V 預設保留最近 200 個檔案；Genio 預設 0 = 不清理。可用環境變數 MAX_KEPT_UPLOADS 覆寫（0 = 不清理）。
+MAX_KEPT_UPLOADS = int(os.environ.get('MAX_KEPT_UPLOADS', '200' if hw.name in ('matrix', 'riscv') else '0'))
 
 # ===== 三餐主食（100 類）：只有提供 NPU 偵測器的平台（目前是 Matrix）才會啟用 =====
 detector100 = None

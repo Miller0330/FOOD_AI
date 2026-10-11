@@ -196,23 +196,41 @@ class AppRoutes(unittest.TestCase):
         return client.post(route, data={'file': (__import__('io').BytesIO(_jpeg_bytes()), 'a.jpg'), 'weight': weight},
                            content_type='multipart/form-data')
 
-    def test_riscv_keeps_legacy_behaviour(self):
+    def test_riscv_matches_matrix_flow(self):
         main, c = self.load('riscv')
         self.assertEqual(main.hw.name, 'riscv')
         self.assertEqual(self.calls['warmup'], 0, 'RISC-V 不可在 import 時暖機（只在 python3 main.py 的 __main__）')
         html = self.post(c).get_data(as_text=True)
-        self.assertIn('FAKE_ADVICE_TEXT', html)                       # 同步：建議直接在頁面內
-        self.assertNotIn('data-token', html)                          # 沒有非同步 token
+        token = re.search(r'data-token="([0-9a-f]+)"', html)
+        self.assertIsNotNone(token, '與 Matrix 一致：結果頁先出，建議非同步取得')
+        self.assertNotIn('FAKE_ADVICE_TEXT', html)
+        j = c.get('/api/advice/' + token.group(1)).get_json()
+        self.assertEqual(j['advice'], 'FAKE_ADVICE_TEXT')
+        self.assertEqual(c.get('/api/advice/' + token.group(1)).status_code, 404)   # token 只能用一次
         self.assertEqual(c.post('/detect100').status_code, 404)       # 100 類入口不存在
         self.assertNotIn('tab-meal', c.get('/').get_data(as_text=True))
-        self.assertEqual(main.MAX_KEPT_UPLOADS, 0)                    # 不清理上傳資料夾（維持原行為）
+        self.assertEqual(main.MAX_KEPT_UPLOADS, 200)                  # 與 Matrix 一致：保留最近 200 個上傳檔
         self.assertEqual(self.calls['advice'][0][0], {'Apple': 1})    # 信心值 0.3 的 Banana 不列入
 
-    def test_genio_uses_same_sync_behaviour(self):
+    def test_riscv_can_fall_back_to_sync_and_no_cleanup(self):
+        os.environ['RISCV_ASYNC_ADVICE'] = '0'
+        os.environ['MAX_KEPT_UPLOADS'] = '0'
+        try:
+            main, c = self.load('riscv')
+            html = self.post(c).get_data(as_text=True)
+            self.assertIn('FAKE_ADVICE_TEXT', html)                   # 退回整併前的同步行為
+            self.assertNotIn('data-token', html)
+            self.assertEqual(main.MAX_KEPT_UPLOADS, 0)
+        finally:
+            os.environ.pop('RISCV_ASYNC_ADVICE', None)
+            os.environ.pop('MAX_KEPT_UPLOADS', None)
+
+    def test_genio_has_async_advice_and_meal100(self):
         main, c = self.load('genio')
         self.assertEqual(main.hw.name, 'genio')
-        self.assertIn('FAKE_ADVICE_TEXT', self.post(c).get_data(as_text=True))
-        self.assertEqual(c.post('/detect100').status_code, 404)
+        self.assertEqual(main.hw.features, {'meal100': True, 'async_advice': True})
+        self.assertIsNotNone(re.search(r'data-token="([0-9a-f]+)"', self.post(c).get_data(as_text=True)))
+        self.assertEqual(main.MAX_KEPT_UPLOADS, 0)                    # Genio 維持不清理
 
     def test_matrix_async_and_meal100(self):
         main, c = self.load('matrix')

@@ -5,7 +5,7 @@
 
 | 平台 | 板子 | LLM | 偵測 | 辨識類別 |
 |---|---|---|---|---|
-| `riscv` | RISC-V（Qilai EVB／HiFive，原 `main`） | llama.cpp riscv64（`llama-cli-new`）＋ Qwen2.5-0.5B ＋ prompt cache | torch（CPU）9 類 | 水果／零食 9 類 |
+| `riscv` | RISC-V（Andes Voyager（晶心科技），原 `main`） | llama.cpp riscv64（`llama-cli-new`）＋ Qwen2.5-0.5B ＋ prompt cache | torch（CPU）9 類 | 水果／零食 9 類 |
 | `genio` | MediaTek Genio 720（ARM64 Linux） | llama.cpp b10964（`llama-completion`，CPU）：Qwen2.5-3B 或 Gemma 4 E4B | 9 類（CPU）＋ **100 類 YOLO11s（onnxruntime CPU）** | 9 類＋三餐主食 100 類 |
 | `matrix` | Realtek Matrix RTD2811（Ubuntu 24.04） | Gemma4 E4B（NPU，`MatriXRT-llm-cli`） | 9 類（CPU）＋ **100 類 YOLO11s（NPU）** | 9 類＋三餐主食 100 類 |
 

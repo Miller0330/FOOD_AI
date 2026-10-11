@@ -8,7 +8,7 @@
 在 **Realtek Matrix（RTD2811）開發板**上完全離線執行的「食物拍照辨識＋營養估算＋AI 營養師建議」系統：
 偵測用 NPU 跑 YOLO，AI 建議用 NPU 跑 Gemma4 E4B，網頁介面用 Flask 提供，全部都在板子上完成，不需要外網。
 
-> 本分支（`Realtek-Matrix`）針對 Matrix 板子。Qilai EVB（`main`）與 MediaTek Genio 720（`Genio_720`）是各自的分支，
+> 本分支（`Realtek-Matrix`）針對 Matrix 板子。Andes Voyager（`main`）與 MediaTek Genio 720（`Genio_720`）是各自的分支，
 > 使用不同的偵測與 LLM 模型。與模型無關的新 UI／營養功能另外整理在 `shared-ui-nutrition` 分支，見文末〈與其他分支的關係〉。
 > 目前進度摘要另見 [`MATRIX_STATUS.md`](MATRIX_STATUS.md)。
 
@@ -393,7 +393,7 @@ python float_eval.py && python compare_eval.py      # 比較浮點與 NPU 的召
 | 分支 | 板子 | 備註 |
 |---|---|---|
 | `Realtek-Matrix`（本分支） | Realtek Matrix RTD2811 | NPU 偵測＋NPU LLM |
-| `main` | Qilai EVB（RISC-V） | 各自的偵測與 LLM |
+| `main` | Andes Voyager（RISC-V） | 各自的偵測與 LLM |
 | `Genio_720` | MediaTek Genio 720 | llama.cpp |
 | `shared-ui-nutrition` | 不限 | 只含與模型無關的新 UI／營養邏輯（`food_logic.py`、模板、USDA 營養資料、`Calculate.py`），供其他分支取用；**不含**任何偵測器、LLM、模型檔。整合方式見 `Riscv2025_Server_scale_Code/SHARED_UI_INTEGRATION.md`；注意新的 `nutrition_data.json` 必須與 `food_logic.py` 及 `main.py` 修改一起套用 |
 
