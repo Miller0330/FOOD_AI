@@ -3,3 +3,4 @@
 models/**/*.nb filter=lfs diff=lfs merge=lfs -text
 training/uecfood_gpu/results/*.pt filter=lfs diff=lfs merge=lfs -text
 training/uecfood_gpu/results/*.onnx filter=lfs diff=lfs merge=lfs -text
+models/**/*.torchscript filter=lfs diff=lfs merge=lfs -text

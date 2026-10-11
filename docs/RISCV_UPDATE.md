@@ -14,7 +14,7 @@
 
 維持不變：
 - LLM：`llama-cli-new` ＋ Qwen2.5-0.5B ＋ prompt cache（`platforms/riscv/llm_advisor.py` 與整併前位元組相同，測試會比對）
-- 偵測：torch（CPU）9 類水果零食；`/detect100`（100 類）在 RISC-V 上不提供
+- 偵測：torch（CPU）9 類水果零食；`/detect100`（100 類）預設不提供，需自行啟用（見下一節）
 - 磅秤：`/dev/ttyUSB1`，沒接時系統照常運作
 - 依賴：`requirements.txt` 沒有改；原本的 `run_server_*.sh` 沒有改
 
@@ -49,6 +49,30 @@
    find . -name __pycache__ -exec rm -rf {} +
    ```
 
+## 100 類主食辨識（選配，預設關閉）
+
+程式已備妥，預設不啟用，等你在實機測過速度再決定要不要開。做法與 Matrix、Genio 一致：同一顆 YOLO11s／512px，letterbox 前處理、單類別解碼，框座標換算回與其他平台相同的座標系，所以網頁與營養計算不用改。
+
+啟用步驟：
+```bash
+# 1. 取得模型檔（Git LFS，約 38 MB）
+git lfs install
+git lfs pull --include="models/uecfood_s512/best.torchscript"
+
+# 2. 先測速（強烈建議）
+python3 benchmark/bench_riscv_detect100.py <含 .jpg 的資料夾或單張圖片> 20 4
+
+# 3. 啟用
+cd Riscv2025_Server_scale_Code
+RISCV_MEAL100=1 python3 main.py
+```
+啟動時若看到「100 類未啟用」的訊息，表示模型檔缺少或還是 LFS 指標檔（只有約 130 位元組），服務會照常以 9 類運作。
+
+速度預估（**未實測**）：RISC-V 主核心 AX45MP 沒有向量擴充（rv64imafdc），純量浮點運算，估計每張約 5 到 10 秒（Matrix NPU 約 22 ms、Genio CPU 約 347 ms）。PC 上用 4 執行緒約 0.2 秒，只代表程式邏輯正確，不代表板上速度。
+請把 `bench_riscv_detect100.py` 的輸出貼回來，我們再決定預設是否啟用、執行緒數是否要調整（`UEC100_THREADS`，預設 4）。
+
+需求：板上的 torch 要能載入 TorchScript（模型是用 PC 的 torch 匯出，板上版本不確定）。若載入失敗請把錯誤訊息貼回來。
+
 ## 驗證檢查表（請在實機上做）
 
 - [ ] 首頁只有一個辨識表單（沒有「三餐主食」分頁）
@@ -65,6 +89,8 @@
 |---|---|---|
 | `RISCV_ASYNC_ADVICE` | `1` | 設為 `0` 退回整併前的同步行為（算完建議才顯示結果頁） |
 | `MAX_KEPT_UPLOADS` | `200` | 上傳資料夾保留的檔案數；`0` 表示不清理 |
+| `RISCV_MEAL100` | `0` | 設為 `1` 啟用 100 類主食辨識（需先取得模型檔，見上一節） |
+| `UEC100_THREADS` | `4` | 100 類偵測使用的 torch 執行緒數 |
 | `PLATFORM` | 自動偵測 | 板上有 `/home/ademo/llama-cli-new` 時自動選 `riscv`，一般不需設定 |
 
 ## 回滾
@@ -80,6 +106,6 @@ git reset --hard <步驟2記下的 commit>
 ## 已知限制
 
 - 尚未在 Andes Voyager 實機驗證；沒有這塊板子的延遲與精度實測數據
-- 沒有 100 類主食辨識，也沒有 NPU，LLM 只有 0.5B
+- 100 類為選配且預設關閉（速度未實測）；沒有 NPU，LLM 只有 0.5B
 - 沒有 systemd 服務，需手動 `python3 main.py`（要開機自動啟動需自行建立服務）
 - `run_server_normal.sh` 內有硬編碼帳密，正式部署前請移除

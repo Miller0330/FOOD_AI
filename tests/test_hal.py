@@ -188,6 +188,10 @@ class AppRoutes(unittest.TestCase):
         if platform == 'matrix':
             sys.modules['platforms.matrix.detector100'] = _module('platforms.matrix.detector100',
                                                                   UECFood100Detector=_FakeDetector100, IMG_SIZE=512)
+        if platform == 'riscv' and os.environ.get('RISCV_MEAL100') == '1':
+            sys.modules['platforms.riscv.detector100'] = _module(
+                'platforms.riscv.detector100', UECFood100Detector=_FakeDetector100, IMG_SIZE=512,
+                MODEL_PATH=os.environ['TEST_MODEL'], LABELS_PATH=os.environ['TEST_LABELS'])
         sys.modules[f'platforms.{platform}.llm_advisor'] = llm
         main = importlib.import_module('main')
         return main, main.app.test_client()
@@ -211,6 +215,40 @@ class AppRoutes(unittest.TestCase):
         self.assertNotIn('tab-meal', c.get('/').get_data(as_text=True))
         self.assertEqual(main.MAX_KEPT_UPLOADS, 200)                  # 與 Matrix 一致：保留最近 200 個上傳檔
         self.assertEqual(self.calls['advice'][0][0], {'Apple': 1})    # 信心值 0.3 的 Banana 不列入
+
+    def _meal100_env(self, model_bytes):
+        model = os.path.join(self.tmp, 'm.torchscript')
+        open(model, 'wb').write(b'0' * model_bytes)
+        labels = os.path.join(self.tmp, 'l.txt')
+        open(labels, 'w').write('x' + chr(10))
+        os.environ.update(RISCV_MEAL100='1', TEST_MODEL=model, TEST_LABELS=labels)
+
+    def test_riscv_meal100_is_opt_in_and_works_when_enabled(self):
+        main, c = self.load('riscv')
+        self.assertFalse(main.hw.features['meal100'])                 # 預設關閉
+        self.assertEqual(c.post('/detect100').status_code, 404)
+        self._purge()
+        self._meal100_env(1_200_000)
+        try:
+            main, c = self.load('riscv')
+            self.assertTrue(main.hw.features['meal100'])
+            self.assertIn('tab-meal', c.get('/').get_data(as_text=True))
+            html = self.post(c, '/detect100').get_data(as_text=True)
+            self.assertIn('牛肉麵', html)
+            self.assertIsNotNone(re.search(r'data-token="([0-9a-f]+)"', html))
+        finally:
+            for k in ('RISCV_MEAL100', 'TEST_MODEL', 'TEST_LABELS'):
+                os.environ.pop(k, None)
+
+    def test_riscv_meal100_stays_off_when_model_is_an_lfs_pointer(self):
+        self._meal100_env(130)                                        # Git LFS 指標檔只有約 130 位元組
+        try:
+            main, c = self.load('riscv')
+            self.assertFalse(main.hw.features['meal100'])
+            self.assertEqual(c.post('/detect100').status_code, 404)
+        finally:
+            for k in ('RISCV_MEAL100', 'TEST_MODEL', 'TEST_LABELS'):
+                os.environ.pop(k, None)
 
     def test_riscv_can_fall_back_to_sync_and_no_cleanup(self):
         os.environ['RISCV_ASYNC_ADVICE'] = '0'
