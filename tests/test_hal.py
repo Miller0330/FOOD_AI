@@ -102,6 +102,13 @@ class ImportIsolation(unittest.TestCase):
         self.assertNotIn('matrix', out.split('None', 1)[1])
         self.assertNotIn('genio', out.split('None', 1)[1])
 
+    def test_riscv_gemma_is_opt_in(self):
+        code = "import hal; p = hal.get_platform(); print(type(p.llm).__name__)"
+        self.assertIn('_RiscvLLM', self._run('riscv', code))
+        with mock.patch.dict(os.environ, {'RISCV_LLM': 'gemma'}):
+            self.assertIn('_GemmaLLM', self._run('riscv', code))
+
+
     def test_shim_exposes_legacy_names_for_riscv_and_genio(self):
         for plat in ('riscv', 'genio'):
             with self.subTest(platform=plat):

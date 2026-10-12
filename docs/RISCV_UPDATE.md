@@ -68,10 +68,29 @@ RISCV_MEAL100=1 python3 main.py
 ```
 啟動時若看到「100 類未啟用」的訊息，表示模型檔缺少或還是 LFS 指標檔（只有約 130 位元組），服務會照常以 9 類運作。
 
-速度預估（**未實測**）：RISC-V 主核心 AX45MP 沒有向量擴充（rv64imafdc），純量浮點運算，估計每張約 5 到 10 秒（Matrix NPU 約 22 ms、Genio CPU 約 347 ms）。PC 上用 4 執行緒約 0.2 秒，只代表程式邏輯正確，不代表板上速度。
-請把 `bench_riscv_detect100.py` 的輸出貼回來，我們再決定預設是否啟用、執行緒數是否要調整（`UEC100_THREADS`，預設 4）。
+實測（Voyager，同一張照片）：純偵測平均約 9.9 秒（模型運算 8.4 秒），網頁一次 `/detect100` 請求約 12.4 到 14.5 秒；對照 Matrix NPU 約 22 ms、Genio CPU 約 347 ms。執行緒 1/2/3/4 個分別約 11.4/10.3/10.1/9.9 秒，多執行緒幾乎不加速（torch 無 MKLDNN，卷積走純量實作），預設 4 即可。
 
 需求：板上的 torch 要能載入 TorchScript（模型是用 PC 的 torch 匯出，板上版本不確定）。若載入失敗請把錯誤訊息貼回來。
+
+## 與 Matrix、Genio 同模型對照（Gemma 4 E4B，選配，預設關閉）
+
+為了三板同模型橫向對比，RISC-V 可改用 Gemma 4 E4B（Q4_0），沿用 Genio 的 `llama-completion` 路線與提示詞。**純量 CPU 非常慢，只供對照，不建議放在網頁 Demo。**
+
+實測（Andes Voyager，4 執行緒，rv64gc 編譯，提示詞與 Genio 相同）：
+- 讀提示 0.49 token/秒、生成 0.34 token/秒
+- 一次完整建議（輸出上限 300 token）：**約 1,017 秒（約 17 分鐘）**
+
+準備步驟（板上需能連網，約 5 GB 下載、編譯約 30 分鐘）：
+```bash
+# 1. 模型
+mkdir -p ~/models && wget -c -O ~/models/gemma-4-E4B-it-Q4_0.gguf   https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf
+# 2. 新版 llama.cpp（要含 Gemma 4；必須關掉向量擴充，否則 Illegal instruction）
+cmake -S ~/llama_src -B ~/llama_g4build_gc -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF   -DGGML_RVV=OFF -DGGML_RV_ZFH=OFF -DGGML_RV_ZVFH=OFF -DGGML_RV_ZICBOP=OFF -DGGML_RV_ZIHINTPAUSE=OFF -DLLAMA_CURL=OFF
+cmake --build ~/llama_g4build_gc -j4 --target llama-completion
+# 3. 啟用
+RISCV_LLM=gemma python3 main.py
+```
+注意：網頁的 AI 建議是一次 HTTP 請求等到生成完成，17 分鐘遠超過瀏覽器可等待的時間，網頁上會顯示取得失敗；要對照速度請用 `platforms/genio/llm_advisor.py` 內的 `__main__` 或自行寫腳本呼叫。
 
 ## 驗證檢查表（請在實機上做）
 
@@ -91,6 +110,8 @@ RISCV_MEAL100=1 python3 main.py
 | `MAX_KEPT_UPLOADS` | `200` | 上傳資料夾保留的檔案數；`0` 表示不清理 |
 | `RISCV_MEAL100` | `0` | 設為 `1` 啟用 100 類主食辨識（需先取得模型檔，見上一節） |
 | `UEC100_THREADS` | `4` | 100 類偵測使用的 torch 執行緒數 |
+| `RISCV_LLM` | （空） | 設為 `gemma` 改用 Gemma 4 E4B（見上一節，極慢） |
+| `LLAMA_DIR` / `LLM_MODEL` / `LLM_THREADS` / `LLM_TIMEOUT` | 見程式 | Gemma 路線的 llama.cpp 目錄、模型檔、執行緒數、逾時秒數 |
 | `PLATFORM` | 自動偵測 | 板上有 `/home/ademo/llama-cli-new` 時自動選 `riscv`，一般不需設定 |
 
 ## 回滾
@@ -105,7 +126,7 @@ git reset --hard <步驟2記下的 commit>
 
 ## 已知限制
 
-- 尚未在 Andes Voyager 實機驗證；沒有這塊板子的延遲與精度實測數據
-- 100 類為選配且預設關閉（速度未實測）；沒有 NPU，LLM 只有 0.5B
+- 已在 Andes Voyager 實機測過 100 類與 Gemma 速度；尚未測精度與長時間穩定性
+- 100 類為選配（`RISCV_MEAL100=1`），實測每張約 10 秒、多執行緒幾乎不加速；沒有 NPU，預設 LLM 為 0.5B，Gemma 4 E4B 實測約 17 分鐘／次
 - 沒有 systemd 服務，需手動 `python3 main.py`（要開機自動啟動需自行建立服務）
 - `run_server_normal.sh` 內有硬編碼帳密，正式部署前請移除

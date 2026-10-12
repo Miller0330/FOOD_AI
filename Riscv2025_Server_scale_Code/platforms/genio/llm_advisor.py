@@ -7,14 +7,14 @@ import threading
 _lock = threading.Lock()
 
 # ============ 可調參數（依裝置速度調整）============
-LLAMA_DIR = '/root/llama-b10964/llama-b10964'
+LLAMA_DIR = os.environ.get('LLAMA_DIR', '/root/llama-b10964/llama-b10964')
 LLAMA_BIN = LLAMA_DIR + '/llama-completion'
 MODEL_PATH = os.environ.get('LLM_MODEL', '/root/models/qwen2.5-3b-instruct-q4_0.gguf')
 IS_GEMMA = 'gemma' in MODEL_PATH.lower()
-GEN_MAX_TOKENS = 300
+GEN_MAX_TOKENS = int(os.environ.get('LLM_MAX_TOKENS', '300'))
 CONTEXT_SIZE = 1024
-N_THREADS = 8
-TIMEOUT_SECONDS = 240
+N_THREADS = int(os.environ.get('LLM_THREADS', '8'))
+TIMEOUT_SECONDS = int(os.environ.get('LLM_TIMEOUT', '240'))
 USE_FEWSHOT = False
 
 # ============ Prompt Cache 設定 ============
@@ -280,6 +280,8 @@ def get_llm_advice(detections, nutrition, recommendations, weight, name_map=None
         '--temp', '0.4', '--top-p', '0.9', '--top-k', '40', '--repeat-penalty', '1.15',
         '-no-cnv',
     ]
+    if IS_GEMMA:
+        cmd.append('--no-display-prompt')   # Gemma 沒有 Qwen 的 assistant 標記，不加的話回應會夾帶提示詞原文
 
     advice = ''
     try:

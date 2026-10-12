@@ -25,6 +25,26 @@ class _RiscvLLM:
         return self._m.get_llm_advice(detections, nutrition, recommendations, weight)
 
 
+class _GemmaLLM:
+    """RISCV_LLM=gemma：與 Matrix／Genio 同一顆 Gemma 4 E4B（Q4_0），沿用 Genio 的 llama-completion 路線與提示詞。
+    純量 CPU（rv64gc，無向量擴充）實測約 0.34 token/秒，一次建議要十幾分鐘以上，僅供三板同模型對照，不建議放在網頁 Demo。"""
+    def __init__(self):
+        home = os.path.expanduser('~')
+        os.environ.setdefault('LLAMA_DIR', os.path.join(home, 'llama_g4build_gc', 'bin'))
+        os.environ.setdefault('LLM_MODEL', os.path.join(home, 'models', 'gemma-4-E4B-it-Q4_0.gguf'))
+        os.environ.setdefault('LLM_THREADS', '4')
+        os.environ.setdefault('LLM_TIMEOUT', '3600')
+        from ..genio import llm_advisor
+        self._m = llm_advisor
+
+    def warmup(self):
+        return True
+
+    def get_advice(self, detections, nutrition, recommendations, weight, name_map=None, category_map=None):
+        return self._m.get_llm_advice(detections, nutrition, recommendations, weight,
+                                      name_map=name_map, category_map=category_map)
+
+
 def _meal100_config():
     """RISCV_MEAL100=1 時啟用 100 類（torch CPU，TorchScript 版 YOLO11s）。模型檔缺少時印出原因並維持關閉，不讓服務起不來。"""
     from .detector100 import IMG_SIZE, MODEL_PATH, LABELS_PATH
@@ -52,7 +72,7 @@ def create():
     meal100 = _meal100_config() if os.environ.get('RISCV_MEAL100', '0') == '1' else None
     return Platform(
         name='riscv',
-        llm=_RiscvLLM(),
+        llm=_GemmaLLM() if os.environ.get('RISCV_LLM', '') == 'gemma' else _RiscvLLM(),
         features={'meal100': meal100 is not None, 'async_advice': os.environ.get('RISCV_ASYNC_ADVICE', '1') != '0'},
         warmup_at_import=False,
         meal100=meal100,
