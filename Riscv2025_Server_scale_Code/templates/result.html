@@ -329,6 +329,7 @@
                         {% else %}
                         <p class="mb-0 fs-5">{{ result.llm_advice if result.llm_advice else "正在分析中..." }}</p>
                         {% endif %}
+                        {% if result.llm_model_label %}<div class="small text-muted mt-1">AI 模型：{{ result.llm_model_label }}</div>{% endif %}
                         <div class="small text-muted mt-1 d-none" id="advice-portion-note">你已調整份量，上方建議是依調整前的份量產生的。</div>
                     </div>
                 </div>

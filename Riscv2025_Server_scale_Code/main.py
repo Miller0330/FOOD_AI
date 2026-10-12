@@ -94,14 +94,19 @@ advice_registry = AdviceRegistry(50)
 _llm_lock = threading.Lock()   # 不同平台的 LLM 不一定執行緒安全，非同步端點自己序列化
 
 
-def _attach_advice(result_data, counts, total, recs, weight, name_map=None, category_map=None):
+def _llm_kwargs(model):
+    """只有提供模型切換的平台（Genio）才把 model 傳給 LLM；其他平台的 get_advice 沒有這個參數。"""
+    return {'model': model} if hw.llm_models else {}
+
+
+def _attach_advice(result_data, counts, total, recs, weight, name_map=None, category_map=None, model=None):
     if hw.features.get('async_advice') and counts:
-        result_data['advice_token'] = advice_registry.register((counts, total, recs, weight, name_map, category_map))
+        result_data['advice_token'] = advice_registry.register((counts, total, recs, weight, name_map, category_map, model))
         return
     # 同步（整併前的行為）：算完建議才回應；沒偵測到食物時也照舊呼叫
     print("開始呼叫LLM...")
     result_data['llm_advice'] = hw.llm.get_advice(counts, total, recs, weight,
-                                                  name_map=name_map, category_map=category_map)
+                                                  name_map=name_map, category_map=category_map, **_llm_kwargs(model))
 
 
 @app.route('/api/advice/<token>')
@@ -109,12 +114,21 @@ def get_advice(token):
     params = advice_registry.pop(token)
     if params is None:
         return jsonify({'success': False, 'error': '建議已過期，請重新辨識'}), 404
-    counts, total, recs, weight, name_map, category_map = params
+    counts, total, recs, weight, name_map, category_map, model = params
     t0 = time.time()
     print("開始呼叫LLM...")
     with _llm_lock:
-        advice = hw.llm.get_advice(counts, total, recs, weight, name_map=name_map, category_map=category_map)
+        advice = hw.llm.get_advice(counts, total, recs, weight, name_map=name_map, category_map=category_map, **_llm_kwargs(model))
     return jsonify({'success': True, 'advice': advice, 'seconds': round(time.time() - t0, 1)})
+
+
+def _chosen_llm_model():
+    """表單送來的 llm_model（只認平台宣告的 id）；沒有切換功能或值不認得就回傳 None，用平台預設。"""
+    if not hw.llm_models:
+        return None, None
+    allowed = {m['id']: m for m in hw.llm_models}
+    chosen = allowed.get(request.form.get('llm_model', ''), hw.llm_models[0])
+    return chosen['id'], chosen['label']
 
 
 def _process_upload(mode, file, detection_weight):
@@ -161,8 +175,11 @@ def _process_upload(mode, file, detection_weight):
         'nutrition': total,
         'recommendations': recs,
     }
+    llm_model, llm_label = _chosen_llm_model()
+    if llm_label:
+        result_data['llm_model_label'] = llm_label
     _attach_advice(result_data, counts, total, recs, detection_weight,
-                   name_map=mode['advice_name_map'], category_map=mode['advice_category_map'])
+                   name_map=mode['advice_name_map'], category_map=mode['advice_category_map'], model=llm_model)
     result_data['total_time'] = f"{time.time() - request_start:.1f}s"
 
     if MAX_KEPT_UPLOADS > 0:
@@ -189,7 +206,7 @@ _MODE_9 = {
 
 @app.route('/')
 def index():
-    return render_template('index.html', features=hw.features)
+    return render_template('index.html', features=hw.features, llm_models=hw.llm_models)
 
 
 @app.route('/detect', methods=['POST'])

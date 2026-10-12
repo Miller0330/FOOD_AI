@@ -41,3 +41,5 @@ class Platform:
     features: Dict[str, bool] = field(default_factory=lambda: {'meal100': False, 'async_advice': False})
     warmup_at_import: bool = False
     meal100: Optional[Meal100Config] = None
+    # 網頁可選的 AI 建議模型 [{'id','label','note'}]，第一個是預設；None 表示不提供切換（目前只有 Genio）
+    llm_models: Optional[list] = None

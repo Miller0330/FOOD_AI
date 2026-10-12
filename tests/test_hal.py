@@ -155,7 +155,7 @@ class AppRoutes(unittest.TestCase):
         shutil.copytree(APP, self.workdir, ignore=shutil.ignore_patterns(
             '*.pt', '*.onnx', '*.tflite', 'llama-cli*', '__pycache__', 'uploads'))
         self.cwd = os.getcwd()
-        self.calls = {'warmup': 0, 'advice': []}
+        self.calls = {'warmup': 0, 'advice': [], 'kw': []}
 
     def tearDown(self):
         os.chdir(self.cwd)
@@ -182,7 +182,8 @@ class AppRoutes(unittest.TestCase):
             calls['warmup'] += 1
             return True
 
-        def advice(d, n, r, w, name_map=None, category_map=None):
+        def advice(d, n, r, w, name_map=None, category_map=None, **kw):
+            calls['kw'].append(kw)
             calls['advice'].append((dict(d), name_map is not None))
             return 'FAKE_ADVICE_TEXT'
 
@@ -203,8 +204,8 @@ class AppRoutes(unittest.TestCase):
         main = importlib.import_module('main')
         return main, main.app.test_client()
 
-    def post(self, client, route='/detect', weight='0'):
-        return client.post(route, data={'file': (__import__('io').BytesIO(_jpeg_bytes()), 'a.jpg'), 'weight': weight},
+    def post(self, client, route='/detect', weight='0', **extra):
+        return client.post(route, data={'file': (__import__('io').BytesIO(_jpeg_bytes()), 'a.jpg'), 'weight': weight, **extra},
                            content_type='multipart/form-data')
 
     def test_riscv_matches_matrix_flow(self):
@@ -276,6 +277,38 @@ class AppRoutes(unittest.TestCase):
         self.assertEqual(main.hw.features, {'meal100': True, 'async_advice': True})
         self.assertIsNotNone(re.search(r'data-token="([0-9a-f]+)"', self.post(c).get_data(as_text=True)))
         self.assertEqual(main.MAX_KEPT_UPLOADS, 0)                    # Genio 維持不清理
+
+    def _advice_model_for(self, client, **extra):
+        html = self.post(client, **extra).get_data(as_text=True)
+        token = re.search(r'data-token="([0-9a-f]+)"', html).group(1)
+        self.assertTrue(client.get('/api/advice/' + token).get_json()['success'])
+        return html, self.calls['kw'][-1]
+
+    def test_genio_model_switch(self):
+        main, c = self.load('genio')
+        home = c.get('/').get_data(as_text=True)
+        self.assertIn('AI 建議模型', home)
+        self.assertIn('name="llm-model-choice"', home)
+        self.assertIn('Qwen2.5-3B', home)
+        self.assertIn('Gemma 4 E4B', home)
+        html, kw = self._advice_model_for(c, llm_model='gemma')
+        self.assertEqual(kw, {'model': 'gemma'})
+        self.assertIn('Gemma 4 E4B', html.split('AI 模型：')[1][:30])
+        self.assertEqual(self._advice_model_for(c)[1], {'model': 'qwen'})                       # 沒選 -> 預設（第一個）
+        self.assertEqual(self._advice_model_for(c, llm_model='rm -rf')[1], {'model': 'qwen'})   # 不認得的值不可直接傳下去
+
+    def test_other_platforms_have_no_model_switch(self):
+        for plat in ('riscv', 'matrix'):
+            with self.subTest(platform=plat):
+                main, c = self.load(plat)
+                home = c.get('/').get_data(as_text=True)
+                self.assertNotIn('llm-model-choice', home)        # 按鈕與腳本都不輸出
+                self.assertNotIn('AI 建議模型', home)
+                route = '/detect100' if plat == 'matrix' else '/detect'
+                html, kw = self._advice_model_for(c, route=route, llm_model='gemma')
+                self.assertEqual(kw, {}, '沒有切換功能的平台不可多傳 model 參數')
+                self.assertNotIn('AI 模型：', html)
+                self._purge()
 
     def test_matrix_async_and_meal100(self):
         main, c = self.load('matrix')

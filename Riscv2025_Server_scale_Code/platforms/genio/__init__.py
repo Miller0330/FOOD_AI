@@ -21,14 +21,25 @@ class _GenioLLM:
     def warmup(self):
         return True
 
-    def get_advice(self, detections, nutrition, recommendations, weight, name_map=None, category_map=None):
+    def get_advice(self, detections, nutrition, recommendations, weight, name_map=None, category_map=None, model=None):
         return self._m.get_llm_advice(detections, nutrition, recommendations, weight,
-                                      name_map=name_map, category_map=category_map)
+                                      name_map=name_map, category_map=category_map, model=model)
 
 
 def _make_detector100():
     from .detector100 import UECFood100Detector
     return UECFood100Detector(conf_threshold=0.15, iou_threshold=0.45)
+
+
+def _llm_models():
+    """網頁上可切換的 AI 建議模型；預設（第一個）依環境變數 LLM_MODEL 決定，沒設就是 Qwen 3B。"""
+    models = [
+        {'id': 'qwen', 'label': 'Qwen2.5-3B', 'note': '較快'},
+        {'id': 'gemma', 'label': 'Gemma 4 E4B', 'note': '與 Matrix 同模型，較慢（約 40 秒）'},
+    ]
+    if 'gemma' in os.environ.get('LLM_MODEL', '').lower():
+        models.reverse()
+    return models
 
 
 def create():
@@ -38,6 +49,7 @@ def create():
         llm=_GenioLLM(),
         features={'meal100': True, 'async_advice': True},
         warmup_at_import=False,
+        llm_models=_llm_models(),
         meal100=Meal100Config(
             detector_factory=_make_detector100,
             nutrition_path=os.path.join(_MATRIX, 'nutrition_data_100_uecfood.json'),
