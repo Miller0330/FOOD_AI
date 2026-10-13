@@ -12,6 +12,8 @@ MODEL_PATH = os.environ.get('UEC100_MODEL', '/root/models/uecfood_s512/best.onnx
 LABELS_PATH = os.environ.get('UEC100_LABELS', '/root/models/uecfood_s512/labels.txt')
 IMG_SIZE = 512
 NUM_THREADS = int(os.environ.get('UEC100_THREADS', '8'))
+# letterbox 前處理與訓練一致（與 Matrix 版相同）；UEC100_LETTERBOX=0 可退回直接拉伸
+LETTERBOX = os.environ.get('UEC100_LETTERBOX', '1') != '0'
 
 _session = None
 _labels = None
@@ -50,6 +52,17 @@ def _nms(boxes, scores, iou_thr):
     return keep
 
 
+def _letterbox(img):
+    """等比縮放並以灰色（114）補邊置中，回傳 (輸入影像, 縮放比, x 偏移, y 偏移)。"""
+    w, h = img.size
+    r = min(IMG_SIZE / w, IMG_SIZE / h)
+    nw, nh = int(round(w * r)), int(round(h * r))
+    canvas = Image.new('RGB', (IMG_SIZE, IMG_SIZE), (114, 114, 114))
+    ox, oy = (IMG_SIZE - nw) // 2, (IMG_SIZE - nh) // 2
+    canvas.paste(img.resize((nw, nh), Image.BILINEAR), (ox, oy))
+    return canvas, r, ox, oy
+
+
 class UECFood100Detector:
     def __init__(self, conf_threshold=0.15, iou_threshold=0.45):
         self.conf_threshold = conf_threshold
@@ -58,8 +71,13 @@ class UECFood100Detector:
     def detect(self, image_path, output_path=None):
         """回傳 [{'class_name': str, 'confidence': float, 'bbox': [x1,y1,x2,y2]}]（512 空間座標）"""
         sess, labels = _load()
-        img = Image.open(image_path).convert('RGB').resize((IMG_SIZE, IMG_SIZE), Image.BILINEAR)
-        x = np.asarray(img, dtype=np.float32).transpose(2, 0, 1)[None] / 255.0
+        src = Image.open(image_path).convert('RGB')
+        img = src.resize((IMG_SIZE, IMG_SIZE), Image.BILINEAR)  # 疊圖與框座標一律用「原圖拉伸成 512×512」空間
+        if LETTERBOX:
+            inp, scale, ox, oy = _letterbox(src)
+        else:
+            inp = img
+        x = np.asarray(inp, dtype=np.float32).transpose(2, 0, 1)[None] / 255.0
         out = sess.run(None, {sess.get_inputs()[0].name: x})[0][0]  # [4+NC, N]
         cls_scores = out[4:]
         cls_ids = cls_scores.argmax(0)
@@ -71,6 +89,8 @@ class UECFood100Detector:
             confs, cls_ids = confs[mask], cls_ids[mask]
             boxes = np.stack([xywh[:, 0] - xywh[:, 2] / 2, xywh[:, 1] - xywh[:, 3] / 2,
                               xywh[:, 0] + xywh[:, 2] / 2, xywh[:, 1] + xywh[:, 3] / 2], 1)
+            if LETTERBOX:
+                boxes = np.clip(boxes, 0, IMG_SIZE)
             for c in np.unique(cls_ids):
                 idx = np.where(cls_ids == c)[0]
                 for k in _nms(boxes[idx], confs[idx], self.iou_threshold):
@@ -79,6 +99,12 @@ class UECFood100Detector:
                     detections.append({'class_name': name, 'confidence': float(confs[j]),
                                        'bbox': [float(v) for v in boxes[j]]})
             detections.sort(key=lambda d: -d['confidence'])
+            if LETTERBOX:
+                sx, sy = IMG_SIZE / src.size[0], IMG_SIZE / src.size[1]
+                for d in detections:
+                    x1, y1, x2, y2 = d['bbox']
+                    d['bbox'] = [min(float(IMG_SIZE), max(0.0, (x1 - ox) / scale * sx)), min(float(IMG_SIZE), max(0.0, (y1 - oy) / scale * sy)),
+                                 min(float(IMG_SIZE), max(0.0, (x2 - ox) / scale * sx)), min(float(IMG_SIZE), max(0.0, (y2 - oy) / scale * sy))]
         if output_path:
             draw = ImageDraw.Draw(img)
             for d in detections:

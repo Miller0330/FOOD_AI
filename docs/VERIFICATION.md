@@ -12,7 +12,7 @@ python -m unittest discover -s tests -v          # 需要 flask、opencv-python�
 應顯示 `OK`。涵蓋：RISC-V 相依檔案與 `main@146e45b` 位元組相同、平台選擇與自動偵測、選 `riscv` 時不載入 matrix／genio 程式、
 三個平台的端到端路由（RISC-V／Genio 同步建議且無 `/detect100`、Matrix 非同步建議與 100 類、token 一次性、兩張表熱量一致）。
 
-## B. RISC-V（Qilai EVB／HiFive）—— 必須實機驗證
+## B. RISC-V（Andes Voyager（晶心科技））—— 必須實機驗證
 1. 取得程式（RISC-V 用不到 LFS 大檔）：
    ```bash
    GIT_LFS_SKIP_SMUDGE=1 git clone -b integration/hal <repo URL> && cd <repo>
@@ -27,7 +27,9 @@ python -m unittest discover -s tests -v          # 需要 flask、opencv-python�
    沒有出現 `matrix`、`genio`、`matrixrt`、`/data/` 之類字樣。
 4. 瀏覽器開 `http://<板子IP>:5000`：
    - 首頁**只有一個**辨識表單（沒有「三餐主食」分頁）。
-   - 上傳水果照片：**等 AI 建議算完才顯示結果頁**（同步，沒有「分析中」轉圈圈）；耗時與整併前相近（約 9 秒）。
+   - 上傳水果照片：**結果頁先出現，AI 建議約 9 秒後補上**（與 Matrix 相同的非同步流程）；
+     若要退回整併前的同步行為，啟動前設 `RISCV_ASYNC_ADVICE=0`。
+   - 上傳資料夾自動保留最近 200 個檔案（與 Matrix 相同）；不要清理就設 `MAX_KEPT_UPLOADS=0`。
    - 結果頁：中文框線與品名、無信心度、份量滑桿可拖動、熱量兩張表一致、AI 建議文字內容風格與整併前相同。
    - `POST /detect100` 應回 404。
 5. 磅秤（若接了 CT1）：`GET /api/weight` 行為與整併前相同（`/dev/ttyUSB1`）。

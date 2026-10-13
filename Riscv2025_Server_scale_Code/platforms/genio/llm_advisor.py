@@ -7,14 +7,27 @@ import threading
 _lock = threading.Lock()
 
 # ============ 可調參數（依裝置速度調整）============
-LLAMA_DIR = '/root/llama-b10964/llama-b10964'
+LLAMA_DIR = os.environ.get('LLAMA_DIR', '/root/llama-b10964/llama-b10964')
 LLAMA_BIN = LLAMA_DIR + '/llama-completion'
 MODEL_PATH = os.environ.get('LLM_MODEL', '/root/models/qwen2.5-3b-instruct-q4_0.gguf')
 IS_GEMMA = 'gemma' in MODEL_PATH.lower()
-GEN_MAX_TOKENS = 300
+# 網頁可選的模型（id -> GGUF 路徑）；沒指定 id 時用上面的 MODEL_PATH（環境變數 LLM_MODEL）
+MODELS = {
+    'qwen': '/root/models/qwen2.5-3b-instruct-q4_0.gguf',
+    'gemma': '/root/models/gemma-4-E4B-it-Q4_0.gguf',
+}
+
+
+def resolve_model(model_id=None):
+    """回傳 (GGUF 路徑, 是否為 Gemma)。id 不認得就退回預設模型。"""
+    path = MODELS.get(model_id) if model_id else None
+    if path is None:
+        return MODEL_PATH, IS_GEMMA
+    return path, 'gemma' in path.lower()
+GEN_MAX_TOKENS = int(os.environ.get('LLM_MAX_TOKENS', '300'))
 CONTEXT_SIZE = 1024
-N_THREADS = 8
-TIMEOUT_SECONDS = 240
+N_THREADS = int(os.environ.get('LLM_THREADS', '8'))
+TIMEOUT_SECONDS = int(os.environ.get('LLM_TIMEOUT', '240'))
 USE_FEWSHOT = False
 
 # ============ Prompt Cache 設定 ============
@@ -61,7 +74,7 @@ _SYSTEM_PROMPT = (
 _FEWSHOT_USER = "這餐食物是白飯1份、雞胸肉2份，總重量350公克，熱量450大卡，這餐熱量佔每日建議的20.0%，蛋白質攝取達到每日建議的35.0%，碳水化合物達到25.0%，膳食纖維達到10.0%。"
 _FEWSHOT_ASSISTANT = "這餐蛋白質充足、熱量與碳水比例適中。但膳食纖維偏低，建議下一餐加一份蔬菜或換成糙米補足纖維。"
 
-_ASSISTANT_MARKER = ("model" if IS_GEMMA else "assistant") + chr(10)
+_ASSISTANT_MARKER = "assistant" + chr(10)
 _STOP_MARKERS = ('<|im_end|>', '<|im_start|>', '<turn|>', '<|turn>')
 
 _FALLBACK_ADVICE = "這餐整體攝取尚屬均衡，建議持續維持均衡飲食，適度增加蔬菜與全穀類以補充膳食纖維，並注意蛋白質與水分的攝取。"
@@ -120,10 +133,13 @@ def _build_prompt(user_query: str) -> str:
 這餐"""
 
 
-def _extract_advice(stdout_bytes: bytes) -> str:
+def _extract_advice(stdout_bytes: bytes, is_gemma=None) -> str:
     stdout = stdout_bytes.decode('utf-8', errors='ignore')
+    if is_gemma is None:
+        is_gemma = IS_GEMMA
 
-    idx = stdout.rfind(_ASSISTANT_MARKER)
+    # Gemma 以 --no-display-prompt 執行，輸出本身就只有回答；Qwen 才需要用 assistant 標記切出回答
+    idx = -1 if is_gemma else stdout.rfind(_ASSISTANT_MARKER)
     if idx != -1:
         advice = stdout[idx + len('assistant\n'):]
     else:
@@ -201,7 +217,8 @@ def _ensure_prompt_cache() -> bool:
         return False
 
 
-def get_llm_advice(detections, nutrition, recommendations, weight, name_map=None, category_map=None):
+def get_llm_advice(detections, nutrition, recommendations, weight, name_map=None, category_map=None, model=None):
+    model_path, is_gemma = resolve_model(model)
     if not detections:
         return "這次沒有偵測到食物，請重新拍攝或確認照片中有清楚的食物內容。"
 
@@ -267,7 +284,7 @@ def get_llm_advice(detections, nutrition, recommendations, weight, name_map=None
         f"禁止使用條列、標題、表格、星號、表情符號。"
     )
 
-    if IS_GEMMA:
+    if is_gemma:
         prompt = "<|turn>user" + chr(10) + query + "<turn|>" + chr(10) + "<|turn>model" + chr(10)
     else:
         prompt = ("<|im_start|>system" + chr(10) + "你是專業的營養師，只使用台灣繁體中文回答。<|im_end|>" + chr(10)
@@ -275,21 +292,23 @@ def get_llm_advice(detections, nutrition, recommendations, weight, name_map=None
                   + "<|im_start|>assistant" + chr(10))
 
     cmd = [
-        LLAMA_BIN, '-m', MODEL_PATH, '-p', prompt,
+        LLAMA_BIN, '-m', model_path, '-p', prompt,
         '-n', str(GEN_MAX_TOKENS), '-t', str(N_THREADS), '-c', str(CONTEXT_SIZE),
         '--temp', '0.4', '--top-p', '0.9', '--top-k', '40', '--repeat-penalty', '1.15',
         '-no-cnv',
     ]
+    if is_gemma:
+        cmd.append('--no-display-prompt')   # Gemma 沒有 Qwen 的 assistant 標記，不加的話回應會夾帶提示詞原文
 
     advice = ''
     try:
         with _lock:
             result = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT_SECONDS,
                                     env={**os.environ, 'LD_LIBRARY_PATH': LLAMA_DIR}, stdin=subprocess.DEVNULL)
-        advice = _extract_advice(result.stdout)
+        advice = _extract_advice(result.stdout, is_gemma)
     except subprocess.TimeoutExpired as e:
         if e.stdout:
-            advice = _extract_advice(e.stdout)
+            advice = _extract_advice(e.stdout, is_gemma)
     except Exception:
         advice = ''
 

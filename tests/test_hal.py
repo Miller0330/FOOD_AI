@@ -102,6 +102,13 @@ class ImportIsolation(unittest.TestCase):
         self.assertNotIn('matrix', out.split('None', 1)[1])
         self.assertNotIn('genio', out.split('None', 1)[1])
 
+    def test_riscv_gemma_is_opt_in(self):
+        code = "import hal; p = hal.get_platform(); print(type(p.llm).__name__)"
+        self.assertIn('_RiscvLLM', self._run('riscv', code))
+        with mock.patch.dict(os.environ, {'RISCV_LLM': 'gemma'}):
+            self.assertIn('_GemmaLLM', self._run('riscv', code))
+
+
     def test_shim_exposes_legacy_names_for_riscv_and_genio(self):
         for plat in ('riscv', 'genio'):
             with self.subTest(platform=plat):
@@ -148,7 +155,7 @@ class AppRoutes(unittest.TestCase):
         shutil.copytree(APP, self.workdir, ignore=shutil.ignore_patterns(
             '*.pt', '*.onnx', '*.tflite', 'llama-cli*', '__pycache__', 'uploads'))
         self.cwd = os.getcwd()
-        self.calls = {'warmup': 0, 'advice': []}
+        self.calls = {'warmup': 0, 'advice': [], 'kw': []}
 
     def tearDown(self):
         os.chdir(self.cwd)
@@ -175,7 +182,8 @@ class AppRoutes(unittest.TestCase):
             calls['warmup'] += 1
             return True
 
-        def advice(d, n, r, w, name_map=None, category_map=None):
+        def advice(d, n, r, w, name_map=None, category_map=None, **kw):
+            calls['kw'].append(kw)
             calls['advice'].append((dict(d), name_map is not None))
             return 'FAKE_ADVICE_TEXT'
 
@@ -188,31 +196,119 @@ class AppRoutes(unittest.TestCase):
         if platform == 'matrix':
             sys.modules['platforms.matrix.detector100'] = _module('platforms.matrix.detector100',
                                                                   UECFood100Detector=_FakeDetector100, IMG_SIZE=512)
+        if platform == 'riscv' and os.environ.get('RISCV_MEAL100') == '1':
+            sys.modules['platforms.riscv.detector100'] = _module(
+                'platforms.riscv.detector100', UECFood100Detector=_FakeDetector100, IMG_SIZE=512,
+                MODEL_PATH=os.environ['TEST_MODEL'], LABELS_PATH=os.environ['TEST_LABELS'])
         sys.modules[f'platforms.{platform}.llm_advisor'] = llm
         main = importlib.import_module('main')
         return main, main.app.test_client()
 
-    def post(self, client, route='/detect', weight='0'):
-        return client.post(route, data={'file': (__import__('io').BytesIO(_jpeg_bytes()), 'a.jpg'), 'weight': weight},
+    def post(self, client, route='/detect', weight='0', **extra):
+        return client.post(route, data={'file': (__import__('io').BytesIO(_jpeg_bytes()), 'a.jpg'), 'weight': weight, **extra},
                            content_type='multipart/form-data')
 
-    def test_riscv_keeps_legacy_behaviour(self):
+    def test_riscv_matches_matrix_flow(self):
         main, c = self.load('riscv')
         self.assertEqual(main.hw.name, 'riscv')
         self.assertEqual(self.calls['warmup'], 0, 'RISC-V 不可在 import 時暖機（只在 python3 main.py 的 __main__）')
         html = self.post(c).get_data(as_text=True)
-        self.assertIn('FAKE_ADVICE_TEXT', html)                       # 同步：建議直接在頁面內
-        self.assertNotIn('data-token', html)                          # 沒有非同步 token
+        token = re.search(r'data-token="([0-9a-f]+)"', html)
+        self.assertIsNotNone(token, '與 Matrix 一致：結果頁先出，建議非同步取得')
+        self.assertNotIn('FAKE_ADVICE_TEXT', html)
+        j = c.get('/api/advice/' + token.group(1)).get_json()
+        self.assertEqual(j['advice'], 'FAKE_ADVICE_TEXT')
+        self.assertEqual(c.get('/api/advice/' + token.group(1)).status_code, 404)   # token 只能用一次
         self.assertEqual(c.post('/detect100').status_code, 404)       # 100 類入口不存在
         self.assertNotIn('tab-meal', c.get('/').get_data(as_text=True))
-        self.assertEqual(main.MAX_KEPT_UPLOADS, 0)                    # 不清理上傳資料夾（維持原行為）
+        self.assertEqual(main.MAX_KEPT_UPLOADS, 200)                  # 與 Matrix 一致：保留最近 200 個上傳檔
         self.assertEqual(self.calls['advice'][0][0], {'Apple': 1})    # 信心值 0.3 的 Banana 不列入
 
-    def test_genio_uses_same_sync_behaviour(self):
+    def _meal100_env(self, model_bytes):
+        model = os.path.join(self.tmp, 'm.torchscript')
+        open(model, 'wb').write(b'0' * model_bytes)
+        labels = os.path.join(self.tmp, 'l.txt')
+        open(labels, 'w').write('x' + chr(10))
+        os.environ.update(RISCV_MEAL100='1', TEST_MODEL=model, TEST_LABELS=labels)
+
+    def test_riscv_meal100_is_opt_in_and_works_when_enabled(self):
+        main, c = self.load('riscv')
+        self.assertFalse(main.hw.features['meal100'])                 # 預設關閉
+        self.assertEqual(c.post('/detect100').status_code, 404)
+        self._purge()
+        self._meal100_env(1_200_000)
+        try:
+            main, c = self.load('riscv')
+            self.assertTrue(main.hw.features['meal100'])
+            self.assertIn('tab-meal', c.get('/').get_data(as_text=True))
+            html = self.post(c, '/detect100').get_data(as_text=True)
+            self.assertIn('牛肉麵', html)
+            self.assertIsNotNone(re.search(r'data-token="([0-9a-f]+)"', html))
+        finally:
+            for k in ('RISCV_MEAL100', 'TEST_MODEL', 'TEST_LABELS'):
+                os.environ.pop(k, None)
+
+    def test_riscv_meal100_stays_off_when_model_is_an_lfs_pointer(self):
+        self._meal100_env(130)                                        # Git LFS 指標檔只有約 130 位元組
+        try:
+            main, c = self.load('riscv')
+            self.assertFalse(main.hw.features['meal100'])
+            self.assertEqual(c.post('/detect100').status_code, 404)
+        finally:
+            for k in ('RISCV_MEAL100', 'TEST_MODEL', 'TEST_LABELS'):
+                os.environ.pop(k, None)
+
+    def test_riscv_can_fall_back_to_sync_and_no_cleanup(self):
+        os.environ['RISCV_ASYNC_ADVICE'] = '0'
+        os.environ['MAX_KEPT_UPLOADS'] = '0'
+        try:
+            main, c = self.load('riscv')
+            html = self.post(c).get_data(as_text=True)
+            self.assertIn('FAKE_ADVICE_TEXT', html)                   # 退回整併前的同步行為
+            self.assertNotIn('data-token', html)
+            self.assertEqual(main.MAX_KEPT_UPLOADS, 0)
+        finally:
+            os.environ.pop('RISCV_ASYNC_ADVICE', None)
+            os.environ.pop('MAX_KEPT_UPLOADS', None)
+
+    def test_genio_has_async_advice_and_meal100(self):
         main, c = self.load('genio')
         self.assertEqual(main.hw.name, 'genio')
-        self.assertIn('FAKE_ADVICE_TEXT', self.post(c).get_data(as_text=True))
-        self.assertEqual(c.post('/detect100').status_code, 404)
+        self.assertEqual(main.hw.features, {'meal100': True, 'async_advice': True})
+        self.assertIsNotNone(re.search(r'data-token="([0-9a-f]+)"', self.post(c).get_data(as_text=True)))
+        self.assertEqual(main.MAX_KEPT_UPLOADS, 0)                    # Genio 維持不清理
+
+    def _advice_model_for(self, client, **extra):
+        html = self.post(client, **extra).get_data(as_text=True)
+        token = re.search(r'data-token="([0-9a-f]+)"', html).group(1)
+        self.assertTrue(client.get('/api/advice/' + token).get_json()['success'])
+        return html, self.calls['kw'][-1]
+
+    def test_genio_model_switch(self):
+        main, c = self.load('genio')
+        home = c.get('/').get_data(as_text=True)
+        self.assertIn('AI 建議模型', home)
+        self.assertIn('name="llm-model-choice"', home)
+        self.assertIn('Qwen2.5-3B', home)
+        self.assertIn('Gemma 4 E4B', home)
+        html, kw = self._advice_model_for(c, llm_model='gemma')
+        self.assertEqual(kw, {'model': 'gemma'})
+        self.assertIn('Gemma 4 E4B', html.split('AI 模型：')[1][:30])
+        self.assertEqual(self._advice_model_for(c)[1], {'model': 'qwen'})                       # 沒選 -> 預設（第一個）
+        self.assertEqual(self._advice_model_for(c, llm_model='rm -rf')[1], {'model': 'qwen'})   # 不認得的值不可直接傳下去
+
+    def test_other_platforms_have_no_model_switch(self):
+        for plat in ('riscv', 'matrix'):
+            with self.subTest(platform=plat):
+                main, c = self.load(plat)
+                home = c.get('/').get_data(as_text=True)
+                self.assertNotIn('llm-model-choice', home)        # 按鈕與腳本都不輸出
+                self.assertNotIn('AI 建議模型', home)
+                route = '/detect100' if plat == 'matrix' else '/detect'
+                html, kw = self._advice_model_for(c, route=route, llm_model='gemma')
+                self.assertEqual(kw, {}, '沒有切換功能的平台不可多傳 model 參數')
+                self.assertNotIn('AI 模型：', html)
+                self._purge()
 
     def test_matrix_async_and_meal100(self):
         main, c = self.load('matrix')

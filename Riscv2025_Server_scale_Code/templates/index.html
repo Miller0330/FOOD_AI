@@ -72,11 +72,11 @@
             color: #ab8158;
             margin-bottom: 10px;
         }
-        #preview-container {
+        .preview-container {
             display: none;
             margin-top: 20px;
         }
-        #image-preview {
+        .image-preview {
             max-width: 100%;
             max-height: 300px;
             border-radius: 10px;
@@ -163,6 +163,20 @@
                     </div>
                 </div>
                 
+                {% if llm_models %}
+                <div class="card mb-3">
+                    <div class="card-body py-2">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="fw-bold me-1">AI模型選擇</span>
+                            {% for m in llm_models %}
+                            <input type="radio" class="btn-check" name="llm-model-choice" id="llm-{{ m.id }}" value="{{ m.id }}" autocomplete="off" {% if loop.first %}checked{% endif %}>
+                            <label class="btn btn-outline-secondary btn-sm" for="llm-{{ m.id }}">{{ m.label }}</label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="card">
                     {% if features and features.meal100 %}
                     <div class="card-header p-0" style="background: transparent; box-shadow:none;">
@@ -171,7 +185,7 @@
                                 <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-fruit" type="button">🍎 水果／零食辨識</button>
                             </li>
                             <li class="nav-item">
-                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-meal" type="button">🍚 三餐主食辨識（測試版）</button>
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-meal" type="button">🍚 三餐主食辨識</button>
                             </li>
                         </ul>
                     </div>
@@ -200,7 +214,7 @@
                             </div>
                             {% if features and features.meal100 %}
                             <div class="tab-pane fade" id="tab-meal">
-                                <p class="text-muted small">測試版：使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別，準確度仍在調校中。</p>
+                                <p class="text-muted small">使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別。</p>
                                 <form action="/detect100" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="submitWithWeight(this, event)">
                                     <input type="hidden" class="weight-input" name="weight" value="0">
                                     <div class="file-upload">
@@ -341,6 +355,17 @@
 
             // 直接使用當前顯示的重量值
             form.querySelector('.weight-input').value = currentWeight;
+
+            {% if llm_models %}
+            // 有提供模型切換的平台：把選到的 AI 建議模型隨表單送出，並記住這次的選擇
+            const chosenLlm = document.querySelector('input[name=llm-model-choice]:checked');
+            if (chosenLlm) {
+                let hidden = form.querySelector('input[name=llm_model]');
+                if (!hidden) { hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'llm_model'; form.appendChild(hidden); }
+                hidden.value = chosenLlm.value;
+                try { localStorage.setItem('llm_model', chosenLlm.value); } catch (e) {}
+            }
+            {% endif %}
             console.log('辨識時重量:', currentWeight + 'g');
 
             // 記錄按下按鈕的時間點，讓結果頁能算出「使用者實際等待時間」
@@ -365,6 +390,17 @@
             HTMLFormElement.prototype.submit.call(form); // 繞過onsubmit，直接真正送出表單
         }
         
+        {% if llm_models %}
+        // 還原上次選的 AI 建議模型（沒有切換功能的平台找不到這些按鈕，直接略過）
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                const saved = localStorage.getItem('llm_model');
+                const radio = saved && document.querySelector('input[name=llm-model-choice][value="' + saved + '"]');
+                if (radio) radio.checked = true;
+            } catch (e) {}
+        });
+        {% endif %}
+
         // 頁面載入時初始化，但不自動讀取重量
         document.addEventListener('DOMContentLoaded', function() {
             // 可以在這裡添加其他初始化邏輯

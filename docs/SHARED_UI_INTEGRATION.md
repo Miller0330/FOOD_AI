@@ -1,6 +1,6 @@
 # 共用 UI／營養邏輯整合指南
 
-給 Qilai EVB（`main`）與 Genio 720（`Genio_720`）分支使用。這包內容來自 `Realtek-Matrix` 分支，**只包含與模型無關的部分**：
+給 Andes Voyager（`main`）與 Genio 720（`Genio_720`）分支使用。這包內容來自 `Realtek-Matrix` 分支，**只包含與模型無關的部分**：
 各板子自己的偵測器（`Detector.py`、模型檔）與 LLM（`LLMAdvisor.py`、prompt、引擎）完全不需要、也不應該被覆蓋。
 
 ## 帶來什麼
