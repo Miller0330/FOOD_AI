@@ -23,7 +23,7 @@
 | AI 飲食建議（非同步，結果頁先出） | 完成 | 完成 | 完成 |
 | 網頁切換 AI 模型 | — | 完成（Qwen／Gemma） | — |
 | 份量滑桿、結果頁疊框、離線 Bootstrap | 完成 | 完成 | 完成 |
-| 磅秤（CT1）整合 | 可用（USB 供電問題未解） | 未實測 | 可用 |
+| 磅秤（CT1）整合 | 可用（USB 供電問題未解） | 未實測 | 程式支援，未實測 |
 | 開機自動啟動（systemd） | 完成 | 完成 | 手動啟動 |
 | 100 類辨識與 512px 解析度 | 三板一致 | 三板一致 | 三板一致 |
 
@@ -123,7 +123,7 @@ systemctl restart riv-foodai       # 重啟
 journalctl -u riv-foodai -f        # 看紀錄
 curl -s localhost:5000/ | head     # 確認網頁回應
 ```
-冷啟動後第一次請求較慢：Matrix 約 2 至 3 分鐘暖機（載入 torch 與 LLM 引擎），Genio 約 10 至 20 秒。
+冷啟動後第一次請求較慢：Matrix 約 2 至 3 分鐘暖機（載入 torch 與 LLM 引擎）；Genio、Voyager 第一次請求也會多載入模型。
 
 ## 疑難排解（常見）
 
