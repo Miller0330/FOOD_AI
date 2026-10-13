@@ -167,10 +167,10 @@
                 <div class="card mb-3">
                     <div class="card-body py-2">
                         <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span class="fw-bold me-1">🤖 AI 建議模型</span>
+                            <span class="fw-bold me-1">AI模型選擇</span>
                             {% for m in llm_models %}
                             <input type="radio" class="btn-check" name="llm-model-choice" id="llm-{{ m.id }}" value="{{ m.id }}" autocomplete="off" {% if loop.first %}checked{% endif %}>
-                            <label class="btn btn-outline-secondary btn-sm" for="llm-{{ m.id }}">{{ m.label }}<span class="small text-muted ms-1">（{{ m.note }}）</span></label>
+                            <label class="btn btn-outline-secondary btn-sm" for="llm-{{ m.id }}">{{ m.label }}</label>
                             {% endfor %}
                         </div>
                     </div>
