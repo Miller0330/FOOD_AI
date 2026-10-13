@@ -1,0 +1,13 @@
+{
+  "baseline_commit": "146e45b (origin/main); text files hashed with CRLF normalized to LF",
+  "sha256": {
+    "Riscv2025_Server_scale_Code/platforms/riscv/llm_advisor.py": "08e99b1910a8820869e4bf46818e68d95625cc39c14cb39150ff0ded5eeb18f1",
+    "Riscv2025_Server_scale_Code/Detector.py": "4ebbe454103bc0c001b597ca647a1e7422648e9f652ba4964554e502abf36bcf",
+    "Riscv2025_Server_scale_Code/WeightSensor.py": "08771c60894198d1ae6a7b23893efe4bfc1ab8c9ceb4bf26554aca18f1ec78c9",
+    "Riscv2025_Server_scale_Code/debug_llm.py": "ebdad85d71ce7655e7215b479e77fcf279c2cac29fcf106bd51282e6c4c5cf44",
+    "Riscv2025_Server_scale_Code/llama-cli-new": "365f7766c23af1ba82d02c9a70f4a34c7b47381662d93d97d72f010cdc094ed4",
+    "requirements.txt": "a66659ed3fb4fbeb8fdbe27c32ad5c71f7381e9a60efb9023e6cb08f2befcd98",
+    "run_server_normal.sh": "ee90759d6750e3de925f1e608611a0fe9d94fd2b2ecc04d0e1ad29add050c653",
+    "run_server_scale.sh": "dbe28c46a12f60f8b97119bb278ca2f2062601de4bf0842612e54fb1c1a345d3"
+  }
+}

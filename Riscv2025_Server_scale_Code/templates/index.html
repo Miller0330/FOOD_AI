@@ -72,11 +72,11 @@
             color: #ab8158;
             margin-bottom: 10px;
         }
-        #preview-container {
+        .preview-container {
             display: none;
             margin-top: 20px;
         }
-        #image-preview {
+        .image-preview {
             max-width: 100%;
             max-height: 300px;
             border-radius: 10px;
@@ -171,7 +171,7 @@
                                 <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-fruit" type="button">🍎 水果／零食辨識</button>
                             </li>
                             <li class="nav-item">
-                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-meal" type="button">🍚 三餐主食辨識（測試版）</button>
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-meal" type="button">🍚 三餐主食辨識</button>
                             </li>
                         </ul>
                     </div>
@@ -200,7 +200,7 @@
                             </div>
                             {% if features and features.meal100 %}
                             <div class="tab-pane fade" id="tab-meal">
-                                <p class="text-muted small">測試版：使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別，準確度仍在調校中。</p>
+                                <p class="text-muted small">使用UEC FOOD 100資料集訓練，涵蓋飯類、麵類、日式家常菜等100種主食類別。</p>
                                 <form action="/detect100" method="post" enctype="multipart/form-data" class="upload-form" onsubmit="submitWithWeight(this, event)">
                                     <input type="hidden" class="weight-input" name="weight" value="0">
                                     <div class="file-upload">

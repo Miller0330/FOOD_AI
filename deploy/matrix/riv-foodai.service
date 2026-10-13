@@ -7,7 +7,8 @@ Type=simple
 WorkingDirectory=/data/RIV-FoodAI-Backup/Riscv2025_Server_scale_Code
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONPATH=/data/pylibs
-ExecStart=/usr/bin/python3 -m gunicorn --workers 1 --timeout 120 --bind 0.0.0.0:5000 --access-logfile - --access-logformat "%(t)s %(h)s %(r)s %(s)s resp_time=%(D)sus" main:app
+Environment=PLATFORM=matrix
+ExecStart=/usr/bin/python3 -m gunicorn --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:5000 --access-logfile - --access-logformat "%(t)s %(h)s %(r)s %(s)s resp_time=%(D)sus" main:app
 Restart=on-failure
 RestartSec=5
 

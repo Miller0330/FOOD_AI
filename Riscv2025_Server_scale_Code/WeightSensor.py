@@ -1,12 +1,8 @@
-import os
 import serial
 import time
 import threading
 import json
 from datetime import datetime
-
-FTDI_FALLBACK_URL = os.environ.get('SCALE_FTDI_URL', 'ftdi://0x0403:0x6010/2')
-
 
 class WeightSensor:
     def __init__(self, port='/dev/ttyUSB1', baudrate=115200, timeout=1):
@@ -22,7 +18,6 @@ class WeightSensor:
         self.baudrate = baudrate
         self.timeout = timeout
         self.ser = None
-        self.use_ftdi = False
         self.is_connected = False
         self.current_weight = 0.0
         self.last_update = None
@@ -32,20 +27,11 @@ class WeightSensor:
     def connect(self):
         """建立串口連接"""
         try:
-            port = self.port
-            if port.startswith('ftdi://') or (not os.path.exists(port) and port == '/dev/ttyUSB1'):
-                # 核心沒有 ftdi_sio 驅動時（Realtek Matrix），改由 pyftdi 走 libusb 讀取
-                from pyftdi.serialext import serial_for_url
-                if not port.startswith('ftdi://'):
-                    port = FTDI_FALLBACK_URL
-                self.ser = serial_for_url(port, baudrate=self.baudrate, timeout=self.timeout)
-                self.use_ftdi = True
-            else:
-                self.ser = serial.Serial(
-                    port=port,
-                    baudrate=self.baudrate,
-                    timeout=self.timeout
-                )
+            self.ser = serial.Serial(
+                port=self.port,
+                baudrate=self.baudrate,
+                timeout=self.timeout
+            )
             self.is_connected = True
             print(f"成功連接到串口: {self.port}")
             return True
@@ -80,10 +66,8 @@ class WeightSensor:
             start_time = time.time()
             
             while (time.time() - start_time) < max_wait_time:
-                if self.use_ftdi or self.ser.in_waiting > 0:
+                if self.ser.in_waiting > 0:
                     data = self.ser.readline()
-                    if not data:
-                        continue
                     weight_str = data.decode('utf-8', errors='ignore').strip()
                     
                     print(f"收到原始數據: '{weight_str}'")

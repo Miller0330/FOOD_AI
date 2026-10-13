@@ -1,16 +1,24 @@
 """
 與模型無關的共用邏輯（營養計算、結果頁疊圖資料、份量滑桿資料、非同步 AI 建議暫存、上傳資料夾清理）。
 
-刻意不 import 任何偵測器或 LLM：各板子（Realtek Matrix / Qilai EVB / Genio 720）自己的
+刻意不 import 任何偵測器或 LLM：各板子（Realtek Matrix / Andes Voyager / Genio 720）自己的
 Detector、LLMAdvisor、模型檔完全不受影響，只需要在 main.py 的 /detect 呼叫這裡的函式。
 整合方式見 SHARED_UI_INTEGRATION.md。
 """
 import collections
 import os
 import threading
+import time
 import uuid
 
 NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fiber', 'fat']
+
+# 9 類（水果／零食）的中文顯示名。放在共用層，各平台的 LLMAdvisor 不需要提供。
+FOOD_NAME_MAP = {
+    'Apple': '蘋果', 'Banana': '香蕉', 'Mango': '芒果', 'Orange': '柳橙',
+    'Pineapple': '鳳梨', 'Watermelon': '西瓜', 'MiniBiscuits': '小餅乾',
+    'Snack': '零食', 'noodles': '麵條',
+}
 
 
 def split_by_confidence(detections, min_conf):
@@ -116,13 +124,18 @@ class AdviceRegistry:
 
 def cleanup_old_uploads(folder, max_kept=200):
     """上傳資料夾最多保留 max_kept 個檔案，避免長期執行把儲存空間吃光。"""
+    if max_kept <= 0:      # 0 = 不清理（RISC-V / Genio 維持原本行為）
+        return
     try:
         files = [os.path.join(folder, f) for f in os.listdir(folder)]
     except FileNotFoundError:
         return
     if len(files) <= max_kept:
         return
-    files.sort(key=os.path.getmtime)
+    # 板子沒有 RTC，重開機後時間可能倒退，舊檔的修改時間會比現在還晚；這類檔案先刪，
+    # 否則剛存的結果圖會被當成最舊而被刪掉（網頁圖片 404）。
+    now = time.time()
+    files.sort(key=lambda f: (0 if os.path.getmtime(f) > now else 1, os.path.getmtime(f)))
     for f in files[:len(files) - max_kept]:
         try:
             os.remove(f)
