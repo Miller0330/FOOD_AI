@@ -37,6 +37,22 @@
 |---|---|---|
 | ![Matrix](docs/images/arch_matrix.png) | ![Genio](docs/images/arch_genio.png) | ![Voyager](docs/images/arch_voyager.png) |
 
+## 程式架構流程圖
+
+檔案層級的呼叫流程：從啟動、瀏覽器請求，到各板專屬的偵測與 LLM 程序。共用的 `main.py`、`food_logic.py`、網頁範本三板相同，差別在最下面兩層。可編輯的 PowerPoint 原檔在 [`docs/diagrams/`](docs/diagrams/)。
+
+**Realtek Matrix**（偵測與 LLM 都在 NPU 常駐程序）
+
+<img src="docs/images/flow_matrix.png" width="640" alt="Matrix 程式架構流程圖">
+
+**MediaTek Genio 720**（CPU；AI 建議可切換 Qwen／Gemma）
+
+<img src="docs/images/flow_genio.png" width="640" alt="Genio 程式架構流程圖">
+
+**Andes Voyager（晶心科技）**（CPU；100 類與 Gemma 為選配）
+
+<img src="docs/images/flow_voyager.png" width="640" alt="Voyager 程式架構流程圖">
+
 ## 效能對照
 
 ### 100 類偵測（YOLO11s，512px，同一張圖）
