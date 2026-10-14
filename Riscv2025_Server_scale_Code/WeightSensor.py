@@ -118,8 +118,34 @@ class WeightSensor:
     
     def get_current_weight(self):
         """獲取當前重量（執行一次讀取）"""
-        # 每次調用時執行一次讀取
-        self.read_weight()
+        # 未連接（例如啟動時磅秤還沒接上）或連線中斷時，最多每 5 秒自動重連一次，不必重啟服務
+        now = time.time()
+        if not self.is_connected and now - getattr(self, '_last_reconnect', 0) > 5:
+            self._last_reconnect = now
+            try:
+                if self.ser is not None:
+                    self.ser.close()
+            except Exception:
+                pass
+            self.ser = None
+            self.connect()
+        # 每次調用時執行一次讀取；連續讀不到資料（拔線、裝置失效）就視為斷線，下次自動重連
+        if self.read_weight() is None:
+            self._fail = getattr(self, '_fail', 0) + 1
+            if self._fail >= 2 and self.is_connected:
+                print("磅秤連續讀取失敗，視為斷線")
+                self.is_connected = False
+                self.current_weight = 0.0
+                self.last_update = None
+                self._last_reconnect = 0
+                try:
+                    if self.ser is not None:
+                        self.ser.close()
+                except Exception:
+                    pass
+                self.ser = None
+        else:
+            self._fail = 0
         
         return {
             'weight': self.current_weight,
