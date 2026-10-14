@@ -21,6 +21,39 @@ FOOD_NAME_MAP = {
 }
 
 
+CANDIDATE_IOU = 0.6    # 兩個不同類別的框重疊度 >= 此值，視為「同一份食物有多種可能」
+MAX_CANDIDATES = 3     # 每份食物最多列出幾個候選
+
+
+def _iou(a, b):
+    ax1, ay1, ax2, ay2 = a
+    bx1, by1, bx2, by2 = b
+    iw = max(0.0, min(ax2, bx2) - max(ax1, bx1))
+    ih = max(0.0, min(ay2, by2) - max(ay1, by1))
+    inter = iw * ih
+    union = (ax2 - ax1) * (ay2 - ay1) + (bx2 - bx1) * (by2 - by1) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def group_candidates(detections, iou_thr=CANDIDATE_IOU, max_cands=MAX_CANDIDATES, allowed=None):
+    """
+    把「框住同一份食物、但類別不同」的偵測（例如義大利麵／肉醬義大利麵）歸成一組，讓使用者自己挑。
+    回傳 groups：每組是依信心值由高到低排序的偵測 list，第 0 個是預設選項（信心最高）。
+    - 同類別的重疊框視為重複，只留信心最高的（不會重複計算）。
+    - allowed：可選的類別集合（有營養資料的類別）；不在裡面的類別不會成為候選。
+    """
+    groups = []
+    for d in sorted(detections, key=lambda x: -x['confidence']):
+        for g in groups:
+            if _iou(g[0]['bbox'], d['bbox']) >= iou_thr:
+                if all(m['class_name'] != d['class_name'] for m in g) and len(g) < max_cands                         and (allowed is None or d['class_name'] in allowed):
+                    g.append(d)
+                break
+        else:
+            groups.append([d])
+    return groups
+
+
 def split_by_confidence(detections, min_conf):
     """信心值太低的偵測不列入營養計算（仍可畫在圖上，標成不確定）。回傳 (confident, low_count)。"""
     confident = [d for d in detections if d['confidence'] >= min_conf]
@@ -43,6 +76,7 @@ def compute_nutrition(confident_detections, nutrition_data, detection_weight):
     detection_counts = {}
     total_nutrition = {k: 0 for k in NUTRIENT_KEYS}
     food_breakdown = {}
+    items = []   # 每個被計入的偵測：{'det': 偵測, 'class': 類別, 'weight_g': 重量}
 
     for d in confident_detections:
         detection_counts[d['class_name']] = detection_counts.get(d['class_name'], 0) + 1
@@ -68,8 +102,10 @@ def compute_nutrition(confident_detections, nutrition_data, detection_weight):
         else:
             weight = nutrition_data[name].get('default_weight_g', 100)
         add(name, weight)
+        items.append({'det': d, 'class': name, 'weight_g': weight})
 
-    return {'detection_counts': detection_counts, 'total_nutrition': total_nutrition, 'food_breakdown': food_breakdown}
+    return {'detection_counts': detection_counts, 'total_nutrition': total_nutrition, 'food_breakdown': food_breakdown,
+            'items': items}
 
 
 def build_boxes(detections, img_w, img_h, label_map, min_conf):
@@ -87,6 +123,53 @@ def build_boxes(detections, img_w, img_h, label_map, min_conf):
             'w': pct(x2 - x1, img_w), 'h': pct(y2 - y1, img_h),
         })
     return boxes
+
+
+def attach_candidates(items, groups, nutrition_src, name_of, detection_weight):
+    """
+    替「有多種可能」的偵測附上候選清單（items 來自 compute_nutrition 的 'items'，會就地加上 'cands'）。
+    每個候選含該類別的重量與每 100g 營養值，前端換選時直接重算，不必重新辨識。
+    有秤重：候選沿用同一個框分到的重量；沒秤重：各用自己的 default_weight_g。
+    回傳有候選的偵測數。
+    """
+    by_det = {id(it['det']): it for it in items}
+    n = 0
+    for g in groups:
+        it = by_det.get(id(g[0]))
+        if it is None or len(g) < 2:
+            continue
+        cands = []
+        for d in g:
+            cn = d['class_name']
+            w = it['weight_g'] if (detection_weight > 0 or d is g[0]) else nutrition_src[cn].get('default_weight_g', 100)
+            cands.append({'class': cn, 'name': name_of(cn), 'weight_g': round(w, 1),
+                          'per100': {k: nutrition_src[cn].get(k, 0) for k in NUTRIENT_KEYS}})
+        it['cands'] = cands
+        n += 1
+    return n
+
+
+def build_portion_rows(items, nutrition_src, name_of):
+    """
+    份量表每一列（前端即時重算用）。一般食物依類別合併成一列；有多種可能的偵測各自一列，
+    列內附 cands（候選清單，第 0 個是預設）與 gid（對應畫面上的框）。
+    """
+    rows, plain, gid = [], {}, 0
+    for it in items:
+        cn = it['class']
+        if it.get('cands'):
+            rows.append({'name': name_of(cn), 'class': cn, 'count': 1, 'weight_g': round(it['weight_g'], 1),
+                         'per100': it['cands'][0]['per100'], 'cands': it['cands'], 'gid': gid})
+            it['gid'] = gid
+            gid += 1
+        elif cn in plain:
+            plain[cn]['count'] += 1
+            plain[cn]['weight_g'] = round(plain[cn]['weight_g'] + it['weight_g'], 1)
+        else:
+            plain[cn] = {'name': name_of(cn), 'class': cn, 'count': 1, 'weight_g': round(it['weight_g'], 1),
+                         'per100': {k: nutrition_src[cn].get(k, 0) for k in NUTRIENT_KEYS}}
+            rows.append(plain[cn])
+    return rows
 
 
 def build_portion_items(food_breakdown, counts, nutrition_src, name_of):
