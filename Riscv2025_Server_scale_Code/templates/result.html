@@ -64,6 +64,9 @@
         .det-box.c2 { border-color: #C8553D; } .det-box.c2 .det-label { background: #C8553D; }
         .det-box.c3 { border-color: #5B6FB5; } .det-box.c3 .det-label { background: #5B6FB5; }
         .det-box.c4 { border-color: #8E6BB0; } .det-box.c4 .det-label { background: #8E6BB0; }
+        .det-label.choice::after { content: ' ▾'; }
+        .choice-item { display: block; background-color: #fff3d6; border: 1px solid #e3c488; }
+        .choice-item .choice-title { font-size: 13px; color: #6b4f2a; margin-bottom: 4px; }
         .det-box.uncertain { border: 2px dashed #9AA7B5; } .det-box.uncertain .det-label { background: #9AA7B5; }
         .progress-bar { background-color: #ab8158; }
         .form-range::-webkit-slider-thumb { background-color: #ab8158; }
@@ -189,7 +192,7 @@
                                     {% for b in result.boxes %}
                                     <div class="det-box {{ 'uncertain' if not b.counted else 'c' ~ (loop.index0 % 5) }}"
                                          style="left: {{ b.x }}%; top: {{ b.y }}%; width: {{ b.w }}%; height: {{ b.h }}%;">
-                                        <span class="det-label">{{ (b.label ~ '？') if not b.counted else b.label }}</span>
+                                        <span class="det-label{{ ' choice' if b.gid is defined }}"{% if b.gid is defined %} data-gid="{{ b.gid }}"{% endif %}>{{ (b.label ~ '？') if not b.counted else b.label }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -218,7 +221,21 @@
                                     {% endfor %}
                                 </ul>
                                 
-                                {% if not result.detections %}
+                                {% if result.choices %}
+                                <div class="small text-muted mb-2">有 {{ result.choices|length }} 處同時辨識到多種可能，請確認實際的食物：</div>
+                                {% for c in result.choices %}
+                                <div class="detection-item choice-item">
+                                    <div class="w-100">
+                                        <div class="choice-title">圖中標示「{{ c.name }}」的位置</div>
+                                        <select class="form-select form-select-sm choice-select" data-gid="{{ c.gid }}" aria-label="確認食物">
+                                            {% for cand in c.cands %}<option value="{{ loop.index0 }}">{{ cand.name }}</option>{% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% endif %}
+
+                                {% if not result.detections and not result.choices %}
                                 <div class="alert alert-warning" role="alert">
                                     未檢測到任何食物，請嘗試不同的照片或角度。
                                 </div>
@@ -233,7 +250,7 @@
                     </div>
                 </div>
                 
-                {% if result.detections %}
+                {% if result.detections or result.choices %}
                 <div class="card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">營養分析</h5>
@@ -295,7 +312,7 @@
                                                 <tbody>
                                                     {% for item in result.portion_items %}
                                                     <tr>
-                                                        <td>{{ item.name }}{% if item.count > 1 %}<span class="text-muted small"> ×{{ item.count }}</span>{% endif %}</td>
+                                                        <td><span class="portion-name" data-idx="{{ loop.index0 }}">{{ item.name }}</span>{% if item.count > 1 %}<span class="text-muted small"> ×{{ item.count }}</span>{% endif %}</td>
                                                         <td>
                                                             <input type="range" class="form-range portion-range" data-idx="{{ loop.index0 }}"
                                                                    min="0.25" max="3" step="0.25" value="1" aria-label="{{ item.name }}份量">
@@ -330,7 +347,9 @@
                         <p class="mb-0 fs-5">{{ result.llm_advice if result.llm_advice else "正在分析中..." }}</p>
                         {% endif %}
                         {% if result.llm_model_label %}<div class="small text-muted mt-1">AI 模型：{{ result.llm_model_label }}</div>{% endif %}
-                        <div class="small text-muted mt-1 d-none" id="advice-portion-note">你已調整份量，上方建議是依調整前的份量產生的。</div>
+                        <div class="small text-muted mt-1 d-none" id="advice-portion-note">你已調整份量或更換食物，上方建議是依調整前的內容產生的。
+                            {% if result.advice_token %}<button type="button" id="advice-regen" class="btn btn-outline-secondary btn-sm ms-1">依目前內容重新產生建議</button>{% endif %}
+                        </div>
                     </div>
                 </div>
 
@@ -425,16 +444,24 @@
                                 'carbs': result.recommendations.carbs.recommended, 'fiber': result.recommendations.fiber.recommended,
                                 'fat': result.recommendations.fat.recommended}|tojson }};
             const NUT = ['calories', 'protein', 'carbs', 'fiber', 'fat'];
+            const MODE = {{ (result.mode or '')|tojson }};
+            const LLM_MODEL = {{ (result.llm_model_id or '')|tojson }};
+            const DETECTION_WEIGHT = {{ (result.detection_weight or 0)|tojson }};
             const mult = ITEMS.map(() => 1);
+            const sel = ITEMS.map(() => 0);   // 有候選的列：目前選的是第幾個（0 = 預設）
             const at = (cls, i) => document.querySelector(`.${cls}[data-idx="${i}"]`);
+            // 有候選清單的列，重量與營養值以目前選的候選為準；一般列用自己的
+            const cur = (it, i) => it.cands ? it.cands[sel[i]] : it;
             function recalc() {
                 const tot = { calories: 0, protein: 0, carbs: 0, fiber: 0, fat: 0 };
                 ITEMS.forEach((it, i) => {
-                    const w = it.weight_g * mult[i];
-                    NUT.forEach(k => { tot[k] += it.per100[k] * w / 100; });
+                    const c = cur(it, i);
+                    const w = c.weight_g * mult[i];
+                    NUT.forEach(k => { tot[k] += c.per100[k] * w / 100; });
                     at('portion-label', i).textContent = mult[i].toFixed(2).replace(/0$/, '');
                     at('portion-weight', i).textContent = w.toFixed(1);
-                    at('portion-cal', i).textContent = Math.round(it.per100.calories * w / 100);
+                    at('portion-cal', i).textContent = Math.round(c.per100.calories * w / 100);
+                    at('portion-name', i).textContent = it.cands ? c.name : it.name;
                 });
                 NUT.forEach(k => {
                     const pct = Math.min(100, Math.round(tot[k] / TARGETS[k] * 1000) / 10);
@@ -442,25 +469,58 @@
                     document.getElementById('n-' + k + '-bar').style.width = pct + '%';
                     document.getElementById('n-' + k + '-pct').textContent = pct;
                 });
-                const changed = mult.some(m => m !== 1);
+                const changed = mult.some(m => m !== 1) || sel.some(v => v !== 0);
                 document.getElementById('portion-reset').classList.toggle('d-none', !changed);
                 const note = document.getElementById('advice-portion-note');
                 if (note) note.classList.toggle('d-none', !changed);
             }
             ranges.forEach(rg => rg.addEventListener('input', () => { mult[+rg.dataset.idx] = parseFloat(rg.value); recalc(); }));
+            // 使用者換選食物：同步更新圖上的框標籤、明細列與營養數字
+            document.querySelectorAll('.choice-select').forEach(el => el.addEventListener('change', () => {
+                const gid = +el.dataset.gid;
+                const i = ITEMS.findIndex(it => it.gid === gid);
+                if (i < 0) return;
+                sel[i] = +el.value;
+                const label = document.querySelector(`.det-label[data-gid="${gid}"]`);
+                if (label) label.textContent = ITEMS[i].cands[sel[i]].name;
+                recalc();
+            }));
             document.getElementById('portion-reset').addEventListener('click', () => {
                 ranges.forEach(rg => { rg.value = 1; });
                 mult.fill(1);
+                sel.fill(0);
+                document.querySelectorAll('.choice-select').forEach(el => { el.value = 0; });
+                document.querySelectorAll('.det-label[data-gid]').forEach(l => {
+                    const it = ITEMS.find(x => x.gid === +l.dataset.gid);
+                    if (it) l.textContent = it.cands[0].name;
+                });
                 recalc();
+            });
+            // 依目前的選擇與份量重新產生 AI 建議
+            const regen = document.getElementById('advice-regen');
+            if (regen) regen.addEventListener('click', () => {
+                const picks = ITEMS.map((it, i) => ({ class: cur(it, i).class || it.class, count: it.count,
+                                                      weight_g: cur(it, i).weight_g * mult[i] }));
+                regen.disabled = true;
+                fetch('/api/advice/regen', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                             body: JSON.stringify({ mode: MODE, llm_model: LLM_MODEL, weight: DETECTION_WEIGHT, picks }) })
+                    .then(r => r.json())
+                    .then(d => { if (d.success) { loadAdvice(d.token); document.getElementById('advice-portion-note').classList.add('d-none'); }
+                                 else { alert(d.error || '無法重新產生建議'); } })
+                    .catch(() => alert('無法重新產生建議'))
+                    .finally(() => { regen.disabled = false; });
             });
         })();
 
         // AI建議非同步取得：必須等 load（結果圖等資源都載完）才發請求，
         // 因為伺服器單一worker，LLM請求會佔住worker，太早發會讓結果圖排在後面等。
-        window.addEventListener('load', function() {
+        function loadAdvice(token) {
             const adviceEl = document.getElementById('advice-text');
             if (!adviceEl) return;
-            fetch('/api/advice/' + adviceEl.dataset.token)
+            adviceEl.classList.add('text-muted');
+            adviceEl.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>AI 營養師分析中，請稍候…';
+            document.getElementById('advice-time').textContent = '';
+            fetch('/api/advice/' + token)
                 .then(r => r.json())
                 .then(data => {
                     adviceEl.classList.remove('text-muted');
@@ -475,6 +535,10 @@
                     adviceEl.classList.remove('text-muted');
                     adviceEl.textContent = 'AI 建議取得失敗，請重新辨識';
                 });
+        }
+        window.addEventListener('load', function() {
+            const adviceEl = document.getElementById('advice-text');
+            if (adviceEl) loadAdvice(adviceEl.dataset.token);
         });
 
         window.addEventListener('load', function() {

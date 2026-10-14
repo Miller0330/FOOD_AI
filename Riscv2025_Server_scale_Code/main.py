@@ -22,7 +22,8 @@ from Detector import TFLiteDetector
 from Calculate import calculate_diet_recommendations
 from WeightSensor import initialize_weight_sensor, get_weight_data
 from food_logic import (NUTRIENT_KEYS, FOOD_NAME_MAP, split_by_confidence, compute_nutrition, build_boxes,
-                        build_portion_items, AdviceRegistry, cleanup_old_uploads)
+                        build_portion_items, AdviceRegistry, cleanup_old_uploads,
+                        group_candidates, attach_candidates, build_portion_rows)
 
 hw = get_platform()   # 目前平台（只載入被選中的那個平台的程式）
 
@@ -152,20 +153,37 @@ def _process_upload(mode, file, detection_weight):
     detections = mode['detect'](img, filepath)
     inference_time = time.time() - start_time
 
+    # 框住同一份食物但類別不同的偵測（例如義大利麵／肉醬義大利麵）歸成一組：預設用信心最高的，
+    # 結果頁讓使用者自己換選；同類別的重疊框只算一次
+    groups = group_candidates(detections, allowed=set(mode['nutrition']))
+    primaries = [g[0] for g in groups]
+
     # 信心值太低的偵測不列入營養計算（圖上以虛線框標成不確定），避免誤導使用者
-    confident, low_confidence_count = split_by_confidence(detections, mode['min_conf'])
+    confident, low_confidence_count = split_by_confidence(primaries, mode['min_conf'])
     box_w, box_h = mode['coord_size'](img)
-    boxes = build_boxes(detections, box_w, box_h, mode['label_map'], mode['min_conf'])
+    boxes = build_boxes(primaries, box_w, box_h, mode['label_map'], mode['min_conf'])
 
     res = compute_nutrition(confident, mode['nutrition'], detection_weight)
-    counts, total, breakdown = res['detection_counts'], res['total_nutrition'], res['food_breakdown']
+    counts, total = res['detection_counts'], res['total_nutrition']
     recs = calculate_diet_recommendations(total)
+
+    attach_candidates(res['items'], [g for g in groups if g[0] in confident], mode['nutrition'], mode['name_of'], detection_weight)
+    portion_rows = build_portion_rows(res['items'], mode['nutrition'], mode['name_of'])
+    gid_of = {id(it['det']): it['gid'] for it in res['items'] if 'gid' in it}
+    for b, d in zip(boxes, primaries):
+        if id(d) in gid_of:
+            b['gid'] = gid_of[id(d)]
+    plain_counts = {}
+    for it in res['items']:
+        if 'gid' not in it:
+            plain_counts[it['class']] = plain_counts.get(it['class'], 0) + 1
 
     display = mode['display_map']   # 100 類：英文 key 換成中文顯示；9 類維持原 key（模板依英文 key 挑圖示）
     result_data = {
-        'detections': {display.get(k, k): v for k, v in counts.items()},
-        'food_breakdown': {display.get(k, k): v for k, v in breakdown.items()},
-        'portion_items': build_portion_items(breakdown, counts, mode['nutrition'], mode['name_of']),
+        'mode': mode['id'],
+        'detections': {display.get(k, k): v for k, v in plain_counts.items()},
+        'choices': [r for r in portion_rows if r.get('cands')],
+        'portion_items': portion_rows,
         'boxes': boxes,
         'result_image': f"/static/uploads/{result_filename}",
         'inference_time': f"{inference_time*1000:.2f}ms",
@@ -178,6 +196,7 @@ def _process_upload(mode, file, detection_weight):
     llm_model, llm_label = _chosen_llm_model()
     if llm_label:
         result_data['llm_model_label'] = llm_label
+        result_data['llm_model_id'] = llm_model
     _attach_advice(result_data, counts, total, recs, detection_weight,
                    name_map=mode['advice_name_map'], category_map=mode['advice_category_map'], model=llm_model)
     result_data['total_time'] = f"{time.time() - request_start:.1f}s"
@@ -190,6 +209,7 @@ def _process_upload(mode, file, detection_weight):
 
 
 _MODE_9 = {
+    'id': '9',
     'prefix': '',
     'detect': lambda img, path: detector.detect(img),
     'min_conf': MIN_CONFIDENCE_FOR_NUTRITION,
@@ -228,6 +248,7 @@ def detect():
 
 if hw.meal100:
     _MODE_100 = {
+        'id': '100',
         'prefix': '100_',
         'detect': lambda img, path: detector100.detect(path),
         'min_conf': hw.meal100.min_confidence,
@@ -253,6 +274,41 @@ if hw.meal100:
         detection_weight = float(request.form.get('weight', 0))
         if file:
             return _process_upload(_MODE_100, file, detection_weight)
+
+
+_MODES = {'9': _MODE_9}
+if hw.meal100:
+    _MODES['100'] = _MODE_100
+
+
+@app.route('/api/advice/regen', methods=['POST'])
+def regen_advice():
+    """使用者在結果頁換選食物／調整份量後，依目前的選擇重新產生 AI 建議（回傳新的 token，再走 /api/advice/<token>）。"""
+    data = request.get_json(silent=True) or {}
+    mode = _MODES.get(data.get('mode'))
+    if mode is None or not hw.features.get('async_advice'):
+        return jsonify({'success': False, 'error': '無法重新產生建議'}), 400
+    nutrition = mode['nutrition']
+    counts, total = {}, {k: 0.0 for k in NUTRIENT_KEYS}
+    try:
+        for p in list(data.get('picks') or [])[:40]:
+            cn = p.get('class')
+            if cn not in nutrition:
+                continue
+            weight_g = max(0.0, min(float(p.get('weight_g', 0)), 5000.0))
+            counts[cn] = counts.get(cn, 0) + max(1, min(int(p.get('count', 1)), 20))
+            for k in NUTRIENT_KEYS:
+                total[k] += nutrition[cn].get(k, 0) * weight_g / 100
+        detection_weight = float(data.get('weight', 0))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': '資料格式錯誤'}), 400
+    if not counts:
+        return jsonify({'success': False, 'error': '沒有可分析的食物'}), 400
+    allowed = {m['id'] for m in hw.llm_models}
+    model = data.get('llm_model') if data.get('llm_model') in allowed else (hw.llm_models[0]['id'] if hw.llm_models else None)
+    token = advice_registry.register((counts, total, calculate_diet_recommendations(total), detection_weight,
+                                      mode['advice_name_map'], mode['advice_category_map'], model))
+    return jsonify({'success': True, 'token': token})
 
 
 @app.route('/api/weight')
