@@ -283,11 +283,11 @@ ssh root@192.100.100.2 "find /data/RIV-FoodAI-Backup -name __pycache__ -exec rm 
 
 ### 營養資料庫
 - **`nutrition_data.json`（9 類）**：USDA FoodData Central SR Legacy 實查，每 100g 的 `calories/protein/carbs/fiber/fat`，另含 `default_weight_g`（典型單份重量）與 `usda_fdc_id`、`usda_description`。舊版的零食與小餅乾熱量曾被低估約 3 倍，已修正。
-- **`nutrition_data_100_uecfood.json`（100 類）**：14 筆為 USDA 實查、86 筆為整道菜估計值（每 100g）。已審查過一輪，修正了約 20 筆 USDA 自動比對到錯誤食物的項目（如味噌湯抓到味噌醬、拉麵抓到乾燥泡麵、牛肉麵抓到罐頭濃縮湯、鰻魚飯只算魚肉等）；熱量依 4/4/9 大卡換算與三大營養素保持一致。
+- **`nutrition_data_100_uecfood.json`（100 類）**：每 100g，全部取自日本文部科學省《日本食品標準成分表（八訂）增補2023年》（MEXT）。36 筆直接引用成分表單一品項（`source_type: mext_direct`），64 筆為整道菜，依食材重量加總後換算（`mext_recipe`）。每筆的 `source` 欄位記錄所用食材編號與重量，逐筆對照見 `docs/NUTRITION_SOURCES_100.md`。
   鍵名是 `UEC001_白飯` 這種格式，依編號排序後與訓練的 class index 一一對應；程式用 `english_name`（空白、`-`、`'` 換成 `_`）對到 `labels.txt`。
 - **修改資料要注意**：
   - 欄位不能隨意增減字串型欄位以外的數值欄位名稱；`food_logic.py` 只讀 `calories/protein/carbs/fiber/fat/default_weight_g`。
-  - 估計值仍可能有偏差，發現不合理請直接修 JSON（熱量最好等於 4×蛋白質＋4×碳水＋9×脂肪），修改後需重啟服務（啟動時載入）。
+  - 整道菜的食材比例為依常見作法設定的估計，實際菜色會有差異；熱量沿用成分表官方值，不一定等於 4/4/9 換算（最大差約 21 大卡）。膳食纖維為 AOAC.2011.25 法（含難消化性澱粉）。修改 JSON 後需重啟服務（啟動時載入）。
   - 若重新用 USDA API 查詢，`DEMO_KEY` 會被限流（HTTP 429），請申請正式 key 或放慢速度。
 
 ### 訓練資料
