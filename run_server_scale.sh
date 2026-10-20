@@ -11,8 +11,8 @@
 ifconfig
 
 # 下載專案
-git clone https://github.com/BiovlsiSystemGroup/RIV-FoodAI-Y2.git
-cd RIV-FoodAI-Y2
+git clone https://github.com/Miller0330/FOOD_AI.git
+cd FOOD_AI
 
 # 安裝套件
 pip3 install -r requirements.txt
