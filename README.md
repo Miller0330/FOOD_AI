@@ -76,8 +76,8 @@ Matrix 的優勢主要在預填（NPU 快 7.3 倍），解碼只差約 1.2 倍�
 ## 取得程式
 
 ```bash
-git clone https://github.com/Miller0330/RIV-FoodAI-Backup.git
-cd RIV-FoodAI-Backup
+git clone https://github.com/Miller0330/FOOD_AI.git
+cd FOOD_AI
 git checkout Realtek-Matrix      # 或 Genio_720、main（Voyager）
 git lfs install && git lfs pull  # 取得模型檔（NPU 模型與 100 類 TorchScript 模型存在 Git LFS）
 ```
@@ -110,7 +110,7 @@ PLATFORM=genio python3 main.py            # 監聽 0.0.0.0:5000
 
 ### Andes Voyager（RISC-V）
 ```bash
-git clone … && cd RIV-FoodAI-Backup && git checkout main
+git clone … && cd FOOD_AI && git checkout main
 pip3 install -r requirements.txt
 cd Riscv2025_Server_scale_Code
 python3 main.py                           # 預設 9 類＋Qwen2.5-0.5B

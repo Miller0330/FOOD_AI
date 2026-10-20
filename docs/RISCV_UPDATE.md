@@ -27,7 +27,7 @@
    ```
    原腳本 clone 的是 `BiovlsiSystemGroup/RIV-FoodAI-Y2`，那個 repo **不會**有這次更新。要更新請指向我們的 repo：
    ```bash
-   git remote set-url origin https://github.com/Miller0330/RIV-FoodAI-Backup.git
+   git remote set-url origin https://github.com/Miller0330/FOOD_AI.git
    ```
 2. **先記下目前版本（回滾用）**
    ```bash
