@@ -398,7 +398,7 @@ python float_eval.py && python compare_eval.py      # 比較浮點與 NPU 的召
 | `shared-ui-nutrition` | 不限 | 只含與模型無關的新 UI／營養邏輯（`food_logic.py`、模板、USDA 營養資料、`Calculate.py`），供其他分支取用；**不含**任何偵測器、LLM、模型檔。整合方式見 `Riscv2025_Server_scale_Code/SHARED_UI_INTEGRATION.md`；注意新的 `nutrition_data.json` 必須與 `food_logic.py` 及 `main.py` 修改一起套用 |
 
 ## 16. 授權與資料來源
-**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼源自 `BiovlsiSystemGroup/RIV-FoodAI-Y2`（該專案未標示授權）。
+**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼沿用本專案早期的 RISC-V 版本。
 
 **第三方元件與資料**
 

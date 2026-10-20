@@ -175,7 +175,7 @@ docs/                            各板說明、HAL 架構、驗證紀錄、架�
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md)：三板啟動與驗證清單
 
 ## 授權與資料來源
-**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼源自 `BiovlsiSystemGroup/RIV-FoodAI-Y2`（該專案未標示授權）。
+**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼沿用本專案早期的 RISC-V 版本。
 
 **第三方元件與資料**
 
