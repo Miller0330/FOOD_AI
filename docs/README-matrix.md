@@ -152,7 +152,7 @@ Riscv2025_Server_Code/            原始不含秤重的舊版伺服器（沿用�
 1. **Windows 驅動**（NCM 是內建驅動，但要手動指定）：裝置管理員 → 找到 CDC NCM 裝置（狀態異常）→ 更新驅動程式 → 瀏覽 → 讓我從清單挑選 → 從磁碟安裝 → 瀏覽到 `C:\Windows\INF\usbncm.inf` → 選「UsbNcm Host Device」。
 2. **直接接電腦，不要經過 USB hub**（實測經 hub 會讓裝置消失）。
 3. 電腦端網卡設固定 IP（需系統管理員）：`192.100.100.1`／`255.255.255.0`，然後 `ping 192.100.100.2`。
-4. **SSH 用金鑰**（密碼登入在這條連線上不通）：先用序列埠（COM14，115200，`root`/`root`）把公鑰寫進板子的 `/root/.ssh/authorized_keys`，之後 `ssh root@192.100.100.2`、`scp` 都免密碼。
+4. **SSH 用金鑰**（密碼登入在這條連線上不通）：先用序列埠（COM14，115200；登入帳號請見板子出廠文件）把公鑰寫進板子的 `/root/.ssh/authorized_keys`，之後 `ssh root@192.100.100.2`、`scp` 都免密碼。
    `/root` 在 OTA 或重置時會被清掉，金鑰要重新寫。
 5. 瀏覽器開 `http://192.100.100.2:5000`（電腦或經同網段的裝置）。
 
@@ -161,8 +161,8 @@ Riscv2025_Server_Code/            原始不含秤重的舊版伺服器（沿用�
 ### 7.0 快速部署（推薦）
 板子已具備 **LLM 引擎、`/data/pylibs` 套件、修改版 `matrixrt_yolo`**（見 7.1，這三樣屬於板子環境）且電腦能 SSH 到板子時：
 ```bash
-git clone -b Realtek-Matrix https://github.com/Miller0330/RIV-FoodAI-Backup.git
-cd RIV-FoodAI-Backup
+git clone -b Realtek-Matrix https://github.com/Miller0330/FOOD_AI.git
+cd FOOD_AI
 ./deploy/matrix/deploy_to_board.sh              # 預設板子 IP 192.100.100.2，可帶參數指定其他 IP
 ```
 腳本會：檢查前置條件（缺什麼會印出警告）→ 複製 100 類模型與標籤到 `/data/models/uecfood_s512/` → 複製程式、營養資料、前端到 `/data/RIV-FoodAI-Backup/Riscv2025_Server_scale_Code/` → 安裝並啟用兩個 systemd 服務 → 清 `__pycache__` → 重啟服務。
