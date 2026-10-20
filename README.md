@@ -68,7 +68,7 @@ docs/                              各平台 README、HAL 架構、雙平台驗�
 - 測試：`python -m unittest discover -s tests -v`（需要 flask、opencv、numpy、pyserial）
 
 ## 授權與資料來源
-**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼源自 `BiovlsiSystemGroup/RIV-FoodAI-Y2`（該專案未標示授權）。
+**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼沿用本專案早期的 RISC-V 版本。
 
 **第三方元件與資料**
 

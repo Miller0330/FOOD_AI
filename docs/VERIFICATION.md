@@ -58,4 +58,4 @@ ssh root@<板子IP> "journalctl -u riv-foodai.service --no-pager | grep HAL"    
 
 ## 已知需要留意
 - RISC-V 的 `run_server_normal.sh` 內有硬編碼帳密（既有，未修改），正式部署前請處理。
-- RISC-V 板子上 `run_server_*.sh` 是 clone 另一個組織的 repo（`BiovlsiSystemGroup/RIV-FoodAI-Y2`），本整併只在我們自己的 repo，不會自動影響那邊。
+- RISC-V 板子上 `run_server_*.sh` 是 clone 舊版 repo，本整併只在我們自己的 repo，不會自動影響那邊。
