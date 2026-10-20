@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | **Realtek Matrix**（RTD2811） | `Realtek-Matrix` | 9 類 CPU＋100 類 **NPU** | Gemma 4 E4B（**NPU**） | 約 32 秒 |
 | **MediaTek Genio 720** | `Genio_720` | 9 類＋100 類（CPU） | Qwen2.5-3B 或 Gemma 4 E4B（網頁可切換） | 25 至 55 秒 |
-| **Andes Voyager（晶心科技）**，RISC-V | `main` | 9 類（CPU）；100 類選配 | Qwen2.5-0.5B；Gemma 4 E4B 選配 | 約 9 秒；Gemma 約 20 分鐘 |
+| **Andes Voyager（晶心科技）**，RISC-V | `Andes-voyager` | 9 類（CPU）；100 類選配 | Qwen2.5-0.5B；Gemma 4 E4B 選配 | 約 9 秒；Gemma 約 20 分鐘 |
 
 > 本 README 涵蓋三塊板子。要部署哪一塊，就切到該板的分支取檔案（見下方〈取得程式〉）。
 
@@ -78,7 +78,7 @@ Matrix 的優勢主要在預填（NPU 快 7.3 倍），解碼只差約 1.2 倍�
 ```bash
 git clone https://github.com/Miller0330/FOOD_AI.git
 cd FOOD_AI
-git checkout Realtek-Matrix      # 或 Genio_720、main（Voyager）
+git checkout Realtek-Matrix      # 或 Genio_720、Andes-voyager（Voyager）
 git lfs install && git lfs pull  # 取得模型檔（NPU 模型與 100 類 TorchScript 模型存在 Git LFS）
 ```
 不需要 LFS 大檔的板子（只跑 9 類）可在 clone 前設 `GIT_LFS_SKIP_SMUDGE=1`。私有 repo 需要 GitHub 帳號與 token。
@@ -110,7 +110,7 @@ PLATFORM=genio python3 main.py            # 監聽 0.0.0.0:5000
 
 ### Andes Voyager（RISC-V）
 ```bash
-git clone … && cd FOOD_AI && git checkout main
+git clone … && cd FOOD_AI && git checkout Andes-voyager
 pip3 install -r requirements.txt
 cd Riscv2025_Server_scale_Code
 python3 main.py                           # 預設 9 類＋Qwen2.5-0.5B
