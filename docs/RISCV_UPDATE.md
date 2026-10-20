@@ -1,6 +1,6 @@
 # Andes Voyager（晶心科技，RISC-V）更新說明
 
-`main` 已更新為多平台整併版。這份文件說明這次改了什麼，以及怎麼在板子上更新、驗證與回滾。
+`Andes-voyager` 分支已更新為多平台整併版。這份文件說明這次改了什麼，以及怎麼在板子上更新、驗證與回滾。
 **這個版本尚未在 Andes Voyager 實機上驗證**（PC 上的自動測試與煙霧測試已通過），請照下面的檢查表測一次。
 
 ## 這次更新的內容
@@ -35,7 +35,7 @@
    ```
 3. **更新（跳過 LFS 大檔，RISC-V 用不到）**
    ```bash
-   GIT_LFS_SKIP_SMUDGE=1 git pull origin main
+   GIT_LFS_SKIP_SMUDGE=1 git pull origin Andes-voyager
    ```
 4. **啟動（不要設定 PLATFORM）**
    ```bash
