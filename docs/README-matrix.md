@@ -398,7 +398,15 @@ python float_eval.py && python compare_eval.py      # 比較浮點與 NPU 的召
 | `shared-ui-nutrition` | 不限 | 只含與模型無關的新 UI／營養邏輯（`food_logic.py`、模板、USDA 營養資料、`Calculate.py`），供其他分支取用；**不含**任何偵測器、LLM、模型檔。整合方式見 `Riscv2025_Server_scale_Code/SHARED_UI_INTEGRATION.md`；注意新的 `nutrition_data.json` 必須與 `food_logic.py` 及 `main.py` 修改一起套用 |
 
 ## 16. 授權與資料來源
-- UEC FOOD 100：東京電通大學，僅限非商業研究使用。
-- USDA FoodData Central（SR Legacy）：公有領域。
-- Gemma：依 Google Gemma 使用條款；Realtek Reality／Acuity-LLM 工具鏈與 `matrixrt` 依 Realtek 授權。
-- Ultralytics YOLO11：AGPL-3.0。
+**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼源自 `BiovlsiSystemGroup/RIV-FoodAI-Y2`（該專案未標示授權）。
+
+**第三方元件與資料**
+
+| 項目 | 授權／條款 | 說明 |
+|---|---|---|
+| UEC FOOD 100 資料集（東京電通大學） | 僅限非商業研究 | 100 類偵測模型以此資料集訓練，模型權重同樣僅供非商業研究使用 |
+| Ultralytics YOLO11 | AGPL-3.0 | 只用於 `training/` 的訓練與評估腳本，部署用的伺服器程式不依賴它。散布其衍生作品或以網路服務提供時，須依 AGPL-3.0 公開對應原始碼 |
+| Gemma 4 | Google Gemma 使用條款 | AI 飲食建議使用 |
+| Realtek 工具鏈（Reality／Acuity-LLM、`matrixrt`） | Realtek 授權 | 模型轉換與 NPU 推論 |
+| USDA FoodData Central（SR Legacy） | 公有領域 | 9 類營養資料 |
+| 日本食品標準成分表（八訂）增補 2023 年（文部科學省） | 依文部科學省的利用規約，需註明出處 | 100 類營養資料，逐筆來源見 `docs/NUTRITION_SOURCES_100.md` |
