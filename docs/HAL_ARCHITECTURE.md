@@ -12,7 +12,7 @@ HAL 介面        hal/interfaces.py：LLMBackend（warmup / get_advice）、Plat
                       │ 延遲載入（只 import 被選中的平台）
 平台層          platforms/riscv/   llm_advisor.py = 整併前 main 的 LLMAdvisor.py（位元組相同）
                 platforms/genio/   llm_advisor.py = Genio_720 分支的 LLMAdvisor.py
-                platforms/matrix/  llm_advisor.py（Acuity-LLM）、detector100.py（matrixrt_yolo）、100 類營養資料
+                platforms/matrix/  llm_advisor.py（Gemma 4 E4B，NPU）、detector100.py（matrixrt_yolo）、100 類營養資料
 ```
 `Platform` 物件描述一個平台：`llm`、功能旗標（`meal100`、`async_advice`）、是否在模組載入時暖機（`warmup_at_import`）、
 100 類偵測器設定（`meal100`，不支援的平台為 `None`）。
