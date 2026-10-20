@@ -71,7 +71,7 @@ Flask + gunicorn（單一 worker）
 
 ## 3. 硬體規格與效能數據
 
-**板子**：RTD2811，2× Cortex-A73，RAM 約 3.9GB，NPU(20TOPS)，Ubuntu 24.04 aarch64。
+**板子**：RTD2811，2× Cortex-A73，RAM 約 3.9GB，NPU(20TOPS) ，Ubuntu 24.04 aarch64。
 儲存：`/dev/root` 3GB（要保持很空）、`/data` 約 21GB（放程式與模型）。
 
 | 項目 | 數值 |
