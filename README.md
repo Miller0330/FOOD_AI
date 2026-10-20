@@ -175,4 +175,15 @@ docs/                            各板說明、HAL 架構、驗證紀錄、架�
 - [`docs/VERIFICATION.md`](docs/VERIFICATION.md)：三板啟動與驗證清單
 
 ## 授權與資料來源
-UEC FOOD 100 僅限非商業研究；USDA FoodData Central 為公有領域；Gemma、Realtek 工具鏈、Ultralytics YOLO（AGPL-3.0）依各自條款。
+**使用範圍**：本專案為研究與競賽展示用途。**未附 LICENSE，保留所有權利，不授權商業使用。** 部分程式碼源自 `BiovlsiSystemGroup/RIV-FoodAI-Y2`（該專案未標示授權）。
+
+**第三方元件與資料**
+
+| 項目 | 授權／條款 | 說明 |
+|---|---|---|
+| UEC FOOD 100 資料集（東京電通大學） | 僅限非商業研究 | 100 類偵測模型以此資料集訓練，模型權重同樣僅供非商業研究使用 |
+| Ultralytics YOLO11 | AGPL-3.0 | 只用於 `training/` 的訓練與評估腳本，部署用的伺服器程式不依賴它。散布其衍生作品或以網路服務提供時，須依 AGPL-3.0 公開對應原始碼 |
+| Gemma 4 | Google Gemma 使用條款 | AI 飲食建議使用 |
+| Realtek 工具鏈（Reality／Acuity-LLM、`matrixrt`） | Realtek 授權 | 模型轉換與 NPU 推論 |
+| USDA FoodData Central（SR Legacy） | 公有領域 | 9 類營養資料 |
+| 日本食品標準成分表（八訂）增補 2023 年（文部科學省） | 依文部科學省的利用規約，需註明出處 | 100 類營養資料，逐筆來源見 `docs/NUTRITION_SOURCES_100.md` |
