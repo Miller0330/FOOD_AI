@@ -92,6 +92,8 @@ if hw.warmup_at_import:
 
 # LLM 建議非同步取得（僅 features['async_advice'] 的平台）：結果頁先渲染，建議由 /api/advice/<token> 補上
 advice_registry = AdviceRegistry(50)
+pending_registry = AdviceRegistry(30)   # 完全沒有高信心結果時，暫存「請使用者確認」的低信心偵測
+MAX_PENDING_CONFIRM = 3                 # 最多請使用者確認幾個
 _llm_lock = threading.Lock()   # 不同平台的 LLM 不一定執行緒安全，非同步端點自己序列化
 
 
@@ -142,12 +144,38 @@ def _process_upload(mode, file, detection_weight):
     # 框住同一份食物但類別不同的偵測（例如義大利麵／肉醬義大利麵）歸成一組：預設用信心最高的，
     # 結果頁讓使用者自己換選；同類別的重疊框只算一次
     groups = group_candidates(detections, allowed=set(mode['nutrition']))
+    ctx = {'mode_id': mode['id'], 'groups': groups, 'img_shape': img.shape, 'result_filename': result_filename,
+           'inference_time': inference_time, 'detection_weight': detection_weight, 'timestamp': timestamp}
+    return _render_result(mode, ctx, request_start)
+
+
+def _render_result(mode, ctx, request_start, chosen=None):
+    """
+    由偵測分組算出結果頁。chosen=None 是第一次顯示；沒有任何高信心結果、但有低信心偵測時，
+    不直接說「未檢測到」，改請使用者勾選哪些是對的（POST /confirm 後帶著 chosen 再算一次）。
+    """
+    groups, result_filename = ctx['groups'], ctx['result_filename']
+    detection_weight, inference_time, timestamp = ctx['detection_weight'], ctx['inference_time'], ctx['timestamp']
     primaries = [g[0] for g in groups]
 
     # 信心值太低的偵測不列入營養計算（圖上以虛線框標成不確定），避免誤導使用者
     confident, low_confidence_count = split_by_confidence(primaries, mode['min_conf'])
-    box_w, box_h = mode['coord_size'](img)
+    pending = []
+    if chosen is not None:
+        confident = confident + [primaries[i] for i in chosen]
+        low_confidence_count = len(primaries) - len(confident)
+    elif not confident:
+        idx = [i for i, d in enumerate(primaries) if d['class_name'] in mode['nutrition']]
+        idx = sorted(idx, key=lambda i: -primaries[i]['confidence'])[:MAX_PENDING_CONFIRM]
+        pending = [{'idx': i, 'name': mode['name_of'](primaries[i]['class_name']),
+                    'confidence': round(primaries[i]['confidence'] * 100)} for i in idx]
+    box_w, box_h = mode['coord_size'](ctx['img_shape'])
     boxes = build_boxes(primaries, box_w, box_h, mode['label_map'], mode['min_conf'])
+    for i in (chosen or []):
+        boxes[i]['counted'] = True
+    for n, p in enumerate(pending, 1):
+        boxes[p['idx']]['pending_no'] = n
+        p['no'] = n
 
     res = compute_nutrition(confident, mode['nutrition'], detection_weight)
     counts, total = res['detection_counts'], res['total_nutrition']
@@ -175,6 +203,8 @@ def _process_upload(mode, file, detection_weight):
         'inference_time': f"{inference_time*1000:.2f}ms",
         'total_items': len(confident),
         'low_confidence_count': low_confidence_count,
+        'pending': pending,
+        'pending_token': pending_registry.register(ctx) if pending else None,
         'detection_weight': detection_weight,  # 辨識時的重量
         'nutrition': total,
         'recommendations': recs,
@@ -195,7 +225,7 @@ _MODE_9 = {
     'prefix': '',
     'detect': lambda img, path: detector.detect(img),
     'min_conf': MIN_CONFIDENCE_FOR_NUTRITION,
-    'coord_size': lambda img: (img.shape[1], img.shape[0]),   # 9 類偵測器回傳原圖像素座標
+    'coord_size': lambda img: (img[1], img[0]),   # 9 類偵測器回傳原圖像素座標
     'label_map': FOOD_NAME_MAP,
     'nutrition': nutrition_data,
     'display_map': {},
@@ -261,6 +291,18 @@ if hw.meal100:
 _MODES = {'9': _MODE_9}
 if hw.meal100:
     _MODES['100'] = _MODE_100
+
+
+@app.route('/confirm', methods=['POST'])
+def confirm_detections():
+    """「未檢測到食物」時，使用者勾選哪些低信心偵測是對的，再依勾選結果顯示完整結果頁。"""
+    ctx = pending_registry.get(request.form.get('token', ''))
+    mode = _MODES.get(ctx['mode_id']) if ctx else None
+    if ctx is None or mode is None:
+        return render_template('index.html', features=hw.features), 410
+    n = len(ctx['groups'])
+    chosen = sorted({int(v) for v in request.form.getlist('pick') if v.isdigit() and int(v) < n})
+    return _render_result(mode, ctx, time.time(), chosen)
 
 
 @app.route('/api/advice/regen', methods=['POST'])

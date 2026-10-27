@@ -192,7 +192,7 @@
                                     {% for b in result.boxes %}
                                     <div class="det-box {{ 'uncertain' if not b.counted else 'c' ~ (loop.index0 % 5) }}"
                                          style="left: {{ b.x }}%; top: {{ b.y }}%; width: {{ b.w }}%; height: {{ b.h }}%;">
-                                        <span class="det-label{{ ' choice' if b.gid is defined }}"{% if b.gid is defined %} data-gid="{{ b.gid }}"{% endif %}>{{ (b.label ~ '？') if not b.counted else b.label }}</span>
+                                        <span class="det-label{{ ' choice' if b.gid is defined }}"{% if b.gid is defined %} data-gid="{{ b.gid }}"{% endif %}>{{ ((b.pending_no ~ '　') if b.pending_no is defined else '') ~ ((b.label ~ '？') if not b.counted else b.label) }}</span>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -235,12 +235,27 @@
                                 {% endfor %}
                                 {% endif %}
 
-                                {% if not result.detections and not result.choices %}
+                                {% if result.pending %}
+                                <form method="post" action="/confirm" class="pending-confirm">
+                                    <input type="hidden" name="token" value="{{ result.pending_token }}">
+                                    <div class="alert alert-warning" role="alert">
+                                        沒有找到把握夠高的食物，但圖中有以下可能的食物（虛線框，編號對應左圖）。請勾選實際有的，再按「確認並顯示結果」；都不是的話可直接重新辨識。
+                                    </div>
+                                    {% for p in result.pending %}
+                                    <label class="detection-item d-flex align-items-center" style="cursor:pointer">
+                                        <input type="checkbox" class="form-check-input me-2" name="pick" value="{{ p.idx }}" style="width:1.3em;height:1.3em">
+                                        <span>{{ p.no }}　{{ p.name }}</span>
+                                        <span class="badge-count ms-auto">把握度約 {{ p.confidence }}%</span>
+                                    </label>
+                                    {% endfor %}
+                                    <button type="submit" class="btn btn-primary mt-2">確認並顯示結果</button>
+                                </form>
+                                {% elif not result.detections and not result.choices %}
                                 <div class="alert alert-warning" role="alert">
                                     未檢測到任何食物，請嘗試不同的照片或角度。
                                 </div>
                                 {% endif %}
-                                {% if result.low_confidence_count %}
+                                {% if result.low_confidence_count and not result.pending %}
                                 <div class="alert alert-warning small mb-0" role="alert">
                                     圖中有 {{ result.low_confidence_count }} 個虛線框是不太確定的偵測（名稱後帶「？」），未列入營養計算；若辨識不理想，可換個角度或光線重新拍攝。
                                 </div>

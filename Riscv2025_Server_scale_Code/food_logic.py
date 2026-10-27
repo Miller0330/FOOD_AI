@@ -204,6 +204,11 @@ class AdviceRegistry:
         with self._lock:
             return self._items.pop(token, None)
 
+    def get(self, token):
+        """取出但不移除（重新整理頁面或返回時還能再用）。"""
+        with self._lock:
+            return self._items.get(token)
+
 
 def cleanup_old_uploads(folder, max_kept=200):
     """上傳資料夾最多保留 max_kept 個檔案，避免長期執行把儲存空間吃光。"""
