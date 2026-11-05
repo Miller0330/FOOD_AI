@@ -7,7 +7,7 @@
 import importlib
 import os
 
-ALLOWED = ('riscv', 'genio', 'matrix')
+ALLOWED = ('riscv', 'genio', 'matrix', 'windows')
 DEFAULT = 'riscv'
 
 # 自動偵測用的特徵檔案（依序檢查，第一個符合的勝出）。

@@ -370,6 +370,9 @@
                 {% endif %}
 
                 <div class="text-center">
+                    {% if result.meal_id %}
+                    <div class="small text-muted mb-2">已記錄到今日飲食紀錄（調整份量會同步更新）｜<a href="/log">查看今日紀錄</a></div>
+                    {% endif %}
                     <a href="/" class="btn btn-primary">
                         <span>重新辨識</span>
                     </a>
@@ -487,6 +490,20 @@
                 document.getElementById('portion-reset').classList.toggle('d-none', !changed);
                 const note = document.getElementById('advice-portion-note');
                 if (note) note.classList.toggle('d-none', !changed);
+                syncLog();
+            }
+            const currentPicks = () => ITEMS.map((it, i) => ({ class: cur(it, i).class || it.class, count: it.count,
+                                                              weight_g: cur(it, i).weight_g * mult[i] }));
+            // 調整份量或換選食物後，稍等一下再把結果同步到每日飲食紀錄（營養數字由伺服器重算）
+            const MEAL_ID = {{ (result.meal_id or 0)|tojson }};
+            let syncTimer = null;
+            function syncLog() {
+                if (!MEAL_ID) return;
+                clearTimeout(syncTimer);
+                syncTimer = setTimeout(() => {
+                    fetch('/api/log/meals/' + MEAL_ID + '/update', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ mode: MODE, picks: currentPicks() }) }).catch(() => {});
+                }, 600);
             }
             ranges.forEach(rg => rg.addEventListener('input', () => { mult[+rg.dataset.idx] = parseFloat(rg.value); recalc(); }));
             // 使用者換選食物：同步更新圖上的框標籤、明細列與營養數字
@@ -513,8 +530,7 @@
             // 依目前的選擇與份量重新產生 AI 建議
             const regen = document.getElementById('advice-regen');
             if (regen) regen.addEventListener('click', () => {
-                const picks = ITEMS.map((it, i) => ({ class: cur(it, i).class || it.class, count: it.count,
-                                                      weight_g: cur(it, i).weight_g * mult[i] }));
+                const picks = currentPicks();
                 regen.disabled = true;
                 fetch('/api/advice/regen', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                              body: JSON.stringify({ mode: MODE, llm_model: LLM_MODEL, weight: DETECTION_WEIGHT, picks }) })
@@ -540,7 +556,7 @@
                     adviceEl.classList.remove('text-muted');
                     if (data.success) {
                         adviceEl.textContent = data.advice;
-                        document.getElementById('advice-time').textContent = `AI 建議生成時間: ${data.seconds}s`;
+                        document.getElementById('advice-time').textContent = `AI 建議生成時間: ${data.seconds}s` + (data.model ? `｜模型：${data.model}` : '');
                     } else {
                         adviceEl.textContent = data.error || '建議取得失敗';
                     }

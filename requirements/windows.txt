@@ -1,0 +1,12 @@
+Flask==3.1.0
+pyserial>=3.5
+Werkzeug>=2.0.0
+Jinja2>=3.0.0
+# torch 請裝 CPU 版：pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch
+opencc-python-reimplemented
+onnxruntime
+numpy
+Pillow
+opencv-python-headless
+waitress

@@ -11,6 +11,8 @@
 | **Andes Voyager（晶心科技）**，RISC-V | `Andes-voyager` | 9 類（CPU）；100 類選配 | Qwen2.5-0.5B；Gemma 4 E4B 選配 | 約 9 秒；Gemma 約 20 分鐘 |
 
 > 本 README 涵蓋三塊板子。要部署哪一塊，就切到該板的分支取檔案（見下方〈取得程式〉）。
+>
+> **Windows 獨立顯卡版**（分支 `Windows-GPU`，用本機大型語言模型，含每日飲食紀錄與對話）：見 [`docs/README-windows.md`](docs/README-windows.md)。
 
 ---
 

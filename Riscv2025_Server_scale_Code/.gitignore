@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 static/uploads/*
 !static/uploads/.gitkeep
+data/diet_log.db*
 sysprompt.cache
 sysprompt.cache.meta
 Detector.py.bak

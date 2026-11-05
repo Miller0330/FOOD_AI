@@ -225,6 +225,12 @@
                     </div>
                 </div>
                 
+                {% if features and features.diet_log %}
+                <div class="text-center mb-3">
+                    <a href="/log" class="btn btn-outline-secondary">📒 今日飲食紀錄與總結</a>
+                </div>
+                {% endif %}
+
                 <div class="features">
                     <div class="row text-center">
                         <div class="col-md-4">

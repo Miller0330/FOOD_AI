@@ -4,17 +4,17 @@ RIV-FoodAI 伺服器入口（多平台）。
   python3 main.py                  # RISC-V / Genio 的舊用法，維持不變（Flask 內建伺服器，port 5000）
   gunicorn ... main:app            # Matrix 的用法（模組載入時暖機）
 
-平台由環境變數 PLATFORM=riscv|genio|matrix 決定；沒設時先用檔案特徵自動偵測，再不行預設 riscv（= 整併前 main 的行為）。
+平台由環境變數 PLATFORM=riscv|genio|matrix|windows 決定；沒設時先用檔案特徵自動偵測，再不行預設 riscv（= 整併前 main 的行為）。
 所有與硬體相關的東西（LLM、100 類 NPU 偵測器）都在 hal/ 與 platforms/<name>/ 之下，這個檔案只依賴 hal 的介面。
 """
 import os
 import json
 import time
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import cv2
-from flask import Flask, render_template, request, redirect, jsonify
+from flask import Flask, render_template, request, redirect, jsonify, Response
 from werkzeug.utils import secure_filename
 
 from hal import get_platform
@@ -26,6 +26,11 @@ from food_logic import (NUTRIENT_KEYS, FOOD_NAME_MAP, split_by_confidence, compu
                         group_candidates, attach_candidates, build_portion_rows)
 
 hw = get_platform()   # 目前平台（只載入被選中的那個平台的程式）
+
+# 每日飲食紀錄：只有 features['diet_log'] 的平台（目前是 Windows）啟用，其他平台完全不載入
+dlog = None
+if hw.features.get('diet_log'):
+    import diet_log as dlog
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -117,7 +122,9 @@ def get_advice(token):
     print("開始呼叫LLM...")
     with _llm_lock:
         advice = hw.llm.get_advice(counts, total, recs, weight, name_map=name_map, category_map=category_map)
-    return jsonify({'success': True, 'advice': advice, 'seconds': round(time.time() - t0, 1)})
+    model_fn = getattr(hw.llm, 'model_name', None)   # 可選：平台能回報目前載入的模型時，結果頁一併顯示
+    return jsonify({'success': True, 'advice': advice, 'seconds': round(time.time() - t0, 1),
+                    'model': model_fn() if model_fn else None})
 
 
 def _process_upload(mode, file, detection_weight):
@@ -147,6 +154,21 @@ def _process_upload(mode, file, detection_weight):
     ctx = {'mode_id': mode['id'], 'groups': groups, 'img_shape': img.shape, 'result_filename': result_filename,
            'inference_time': inference_time, 'detection_weight': detection_weight, 'timestamp': timestamp}
     return _render_result(mode, ctx, request_start)
+
+
+def _log_items(mode, rows):
+    """份量列（class / count / weight_g）換成要存進紀錄的明細。營養數字一律用營養表現算，不採用前端傳來的數字。"""
+    src = mode['nutrition']
+    items = []
+    for r in rows:
+        cn = r.get('class')
+        if cn not in src:
+            continue
+        w = max(0.0, min(float(r.get('weight_g', 0)), 5000.0))
+        items.append({'key': cn, 'name': mode['name_of'](cn), 'category': src[cn].get('category', ''),
+                      'count': max(1, min(int(r.get('count', 1)), 20)), 'weight_g': w,
+                      **{k: src[cn].get(k, 0) * w / 100 for k in NUTRIENT_KEYS}})
+    return items
 
 
 def _render_result(mode, ctx, request_start, chosen=None):
@@ -209,6 +231,12 @@ def _render_result(mode, ctx, request_start, chosen=None):
         'nutrition': total,
         'recommendations': recs,
     }
+    if dlog and portion_rows:
+        try:   # 紀錄寫入失敗不應該讓結果頁打不開
+            result_data['meal_id'] = dlog.add_meal(mode['id'], result_data['result_image'], detection_weight,
+                                                   _log_items(mode, portion_rows))
+        except Exception as e:
+            print(f"寫入飲食紀錄失敗: {e}")
     _attach_advice(result_data, counts, total, recs, detection_weight,
                    name_map=mode['advice_name_map'], category_map=mode['advice_category_map'])
     result_data['total_time'] = f"{time.time() - request_start:.1f}s"
@@ -393,6 +421,141 @@ def calculate_nutrition_with_weight():
             'success': False,
             'error': str(e)
         }), 500
+
+
+if dlog:
+    def _valid_day(value):
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').strftime('%Y-%m-%d')
+        except (TypeError, ValueError):
+            return None
+
+    def _daily_view(day):
+        """某天的紀錄加上與每日建議量的比較（百分比不封頂，超過 100% 也看得出來）。"""
+        data = dlog.get_day(day)
+        targets = {k: v['recommended'] for k, v in calculate_diet_recommendations(data['totals']).items()
+                   if isinstance(v, dict)}
+        data['targets'] = targets
+        data['pct'] = {k: round(data['totals'][k] / targets[k] * 100) for k in NUTRIENT_KEYS}
+        return data
+
+    def _day_payload(data):
+        """交給 LLM 的當天紀錄（每日總結與對話共用）；數字全部是程式算好的。"""
+        return {
+            'day': data['day'],
+            'meals': [{'time': m['time'], 'calories': m['calories'],
+                       'foods': [f"{it['name']}（{round(it['weight_g'])}公克）" for it in m['items']]}
+                      for m in data['meals']],
+            'totals': data['totals'], 'targets': data['targets'], 'categories': data['categories'],
+        }
+
+    @app.route('/today')
+    def log_today():
+        return redirect('/log')
+
+    @app.route('/log')
+    def log_page():
+        day = _valid_day(request.args.get('date')) or datetime.now().strftime('%Y-%m-%d')
+        data = _daily_view(day)
+        d = datetime.strptime(day, '%Y-%m-%d')
+        summary = dlog.get_summary(day, dlog.signature(data)) if data['meals'] else None
+        return render_template('log.html', data=data, summary=summary, chat_enabled=hasattr(hw.llm, 'chat_stream'),
+                               prev_day=(d - timedelta(days=1)).strftime('%Y-%m-%d'),
+                               next_day=(d + timedelta(days=1)).strftime('%Y-%m-%d'),
+                               is_today=(day == datetime.now().strftime('%Y-%m-%d')))
+
+    @app.route('/api/log/meals/<int:meal_id>', methods=['DELETE'])
+    def log_delete_meal(meal_id):
+        if not dlog.delete_meal(meal_id):
+            return jsonify({'success': False, 'error': '找不到這筆紀錄'}), 404
+        return jsonify({'success': True})
+
+    @app.route('/api/log/meals/<int:meal_id>/update', methods=['POST'])
+    def log_update_meal(meal_id):
+        """結果頁調整份量或換選食物後同步更新紀錄（picks 的格式與 /api/advice/regen 相同）。"""
+        data = request.get_json(silent=True) or {}
+        mode = _MODES.get(data.get('mode'))
+        if mode is None:
+            return jsonify({'success': False, 'error': '無法更新紀錄'}), 400
+        try:
+            items = _log_items(mode, list(data.get('picks') or [])[:40])
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': '資料格式錯誤'}), 400
+        if not items:
+            return jsonify({'success': False, 'error': '沒有可記錄的食物'}), 400
+        if not dlog.replace_items(meal_id, items):
+            return jsonify({'success': False, 'error': '找不到這筆紀錄'}), 404
+        return jsonify({'success': True})
+
+    @app.route('/api/log/summary', methods=['POST'])
+    def log_daily_summary():
+        """產生（或取出快取的）某天的 AI 總結。合計數字由程式算好，LLM 只負責把它說成人話。"""
+        body = request.get_json(silent=True) or {}
+        day = _valid_day(body.get('date'))
+        if day is None:
+            return jsonify({'success': False, 'error': '日期格式錯誤'}), 400
+        data = _daily_view(day)
+        if not data['meals']:
+            return jsonify({'success': False, 'error': '這天還沒有飲食紀錄'}), 400
+        sig = dlog.signature(data)
+        cached = None if body.get('force') else dlog.get_summary(day, sig)
+        if cached:
+            return jsonify({'success': True, 'cached': True, **{k: cached[k] for k in ('text', 'model', 'seconds', 'created_at')}})
+        with _llm_lock:
+            result = hw.llm.get_daily_summary(_day_payload(data))
+        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if not result['fallback']:   # LLM 失敗時的統計文字不快取，下次還會再試
+            dlog.save_summary(day, sig, result['text'], result['model'], result['seconds'])
+        return jsonify({'success': True, 'cached': False, 'fallback': result['fallback'], 'text': result['text'],
+                        'model': result['model'], 'seconds': result['seconds'], 'created_at': created_at})
+
+
+if dlog and hasattr(hw.llm, 'chat_stream'):
+    MAX_CHAT_TURNS = 12        # 每次最多帶入最近幾輪對話（模型本身不記得上一輪，每輪都要整段重組）
+    MAX_CHAT_CHARS = 500       # 單次提問的字數上限
+
+    @app.route('/api/log/chat', methods=['GET', 'POST', 'DELETE'])
+    def log_chat():
+        """跟營養師持續對話（以天為單位）。POST 以串流回傳（每行一個 JSON：{"t": 文字}，最後 {"done": ...}）。"""
+        body = request.get_json(silent=True) or {}
+        day = _valid_day(request.args.get('date') or body.get('date'))
+        if day is None:
+            return jsonify({'success': False, 'error': '日期格式錯誤'}), 400
+        if request.method == 'GET':
+            return jsonify({'success': True, 'messages': dlog.get_chat(day)})
+        if request.method == 'DELETE':
+            dlog.clear_chat(day)
+            return jsonify({'success': True})
+
+        message = str(body.get('message') or '').strip()[:MAX_CHAT_CHARS]
+        if not message:
+            return jsonify({'success': False, 'error': '請輸入想問的內容'}), 400
+        payload = _day_payload(_daily_view(day))   # 每輪都用最新的紀錄，新增或刪除餐點後回答會跟著變
+        history = dlog.get_chat(day, limit=MAX_CHAT_TURNS * 2)
+
+        def generate():
+            answer, done = '', {}
+            try:
+                with _llm_lock:
+                    for kind, value in hw.llm.chat_stream(payload, history, message):
+                        if kind == 'text':
+                            answer += value
+                            yield json.dumps({'t': value}, ensure_ascii=False) + '\n'
+                        else:
+                            done = value
+            except Exception as e:
+                print(f"對話失敗: {e}")
+                yield json.dumps({'error': '營養師暫時無法回覆，請稍後再試'}, ensure_ascii=False) + '\n'
+                return
+            answer = answer.strip()
+            if not answer:
+                yield json.dumps({'error': '營養師沒有回應，請換個方式再問一次'}, ensure_ascii=False) + '\n'
+                return
+            dlog.add_chat_exchange(day, message, answer, done.get('model'), done.get('seconds'))
+            yield json.dumps({'done': True, **done}, ensure_ascii=False) + '\n'
+
+        return Response(generate(), mimetype='application/x-ndjson',
+                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 if __name__ == '__main__':

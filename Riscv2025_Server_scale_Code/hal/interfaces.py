@@ -5,7 +5,10 @@
 每個平台（platforms/<name>/）提供一個 create()，回傳 Platform 物件：
 
   - llm：實作 LLMBackend（warmup / get_advice）
-  - features：功能旗標（meal100、async_advice）
+  - features：功能旗標（meal100、async_advice、diet_log）。diet_log 為真的平台，llm 還要提供
+              get_daily_summary(payload) -> {'text', 'fallback', 'model', 'seconds'}（每日飲食紀錄的總結）；
+              可選再提供 chat_stream(payload, history, user_message)（串流，逐一 yield ('text', 文字)，
+              最後 yield ('done', {'model', 'seconds'})），每日紀錄頁的「跟營養師聊聊」才會啟用
   - warmup_at_import：True 表示模組載入時就暖機（給 gunicorn 這類 WSGI 伺服器用）；
                       False 表示維持舊行為，只在 `python3 main.py` 的 __main__ 暖機
   - meal100：可選，第二組（100 類）NPU 偵測器的設定；不支援的平台為 None

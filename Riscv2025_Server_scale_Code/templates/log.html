@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日飲食紀錄 - 食物辨識與營養管理</title>
+    <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f6efe1; padding-bottom: 50px; }
+        .header { background: linear-gradient(135deg, #ab8158, #8a6642); color: white; padding: 20px 0; margin-bottom: 30px;
+                  text-align: center; border-radius: 0 0 15px 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .card { background-color: #fffbf3; border-radius: 15px; box-shadow: 0 6px 10px rgba(0,0,0,0.08); margin-bottom: 20px; border: none; }
+        .card-header { background: linear-gradient(135deg, #ddba8b, #c69c68); color: #4a3624; border-radius: 15px 15px 0 0 !important; padding: 15px; }
+        .btn-primary { background: linear-gradient(135deg, #c69c68, #ab8158); border: none; border-radius: 50px; padding: 10px 25px;
+                       font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
+        .btn-primary:hover { background: linear-gradient(135deg, #b78b56, #8a6642); }
+        .progress { height: 10px; background-color: #efe3cc; }
+        .progress-bar { background-color: #ab8158; }
+        .progress-bar.over { background-color: #c0623a; }
+        .meal-thumb { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; background: #efe3cc; }
+        .meal-card { border-bottom: 1px solid #efe3cc; padding: 14px 0; }
+        .meal-card:last-child { border-bottom: none; }
+        .summary-text { white-space: pre-line; font-size: 1.05rem; line-height: 1.8; }
+        .chat-box { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px; }
+        .bubble { max-width: 85%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; line-height: 1.7; }
+        .bubble.user { align-self: flex-end; background: #ddba8b; color: #3b2a1a; }
+        .bubble.assistant { align-self: flex-start; background: #fcf6ea; border: 1px solid #efe3cc; }
+        .bubble-meta { align-self: flex-start; font-size: 0.75rem; color: #8a7a66; margin-top: -6px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>每日飲食紀錄</h1>
+            <p class="mb-0">{{ data.day }}{% if is_today %}（今天）{% endif %}</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                    <a href="/log?date={{ prev_day }}" class="btn btn-outline-secondary btn-sm">← 前一天</a>
+                    <form method="get" action="/log" class="d-flex gap-2">
+                        <input type="date" name="date" value="{{ data.day }}" class="form-control form-control-sm" onchange="this.form.submit()" aria-label="選擇日期">
+                    </form>
+                    <div>
+                        {% if not is_today %}<a href="/log" class="btn btn-outline-secondary btn-sm">回到今天</a>{% endif %}
+                        <a href="/log?date={{ next_day }}" class="btn btn-outline-secondary btn-sm">後一天 →</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">全天合計</h5></div>
+                    <div class="card-body">
+                        {% if data.meals %}
+                        <table class="table table-sm align-middle mb-2">
+                            <tr><th>營養素</th><th>已攝取</th><th>每日建議量</th><th style="min-width: 160px;">達成率</th></tr>
+                            {% for key, label, unit in [('calories', '熱量', '大卡'), ('protein', '蛋白質', '克'), ('carbs', '碳水化合物', '克'), ('fiber', '膳食纖維', '克'), ('fat', '脂肪', '克')] %}
+                            {% set pct = data.pct[key] %}
+                            <tr>
+                                <td>{{ label }}</td>
+                                <td>{{ ('%.0f' % data.totals[key]) if key == 'calories' else ('%.1f' % data.totals[key]) }} {{ unit }}</td>
+                                <td>{{ data.targets[key]|int }} {{ unit }}</td>
+                                <td>
+                                    <div class="progress"><div class="progress-bar{{ ' over' if pct > 100 }}" style="width: {{ [pct, 100]|min }}%"></div></div>
+                                    <small>{{ pct }}%</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                        <div class="small text-muted">* 建議量為一般成人標準，實際需求可能因個人差異而不同。</div>
+                        {% else %}
+                        <p class="text-muted mb-0">這天還沒有紀錄。辨識食物後，結果會自動記錄在這裡。</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if data.meals %}
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">AI 營養師每日總結</h5></div>
+                    <div class="card-body">
+                        <p class="summary-text mb-2 {{ '' if summary else 'text-muted' }}" id="summary-text">{{ summary.text if summary else '按下按鈕，讓 AI 營養師統整今天吃的所有東西。' }}</p>
+                        <div class="small text-muted mb-2" id="summary-meta">{% if summary %}模型：{{ summary.model or '未知' }}｜生成時間 {{ summary.seconds }}s｜{{ summary.created_at }}{% endif %}</div>
+                        <button type="button" class="btn btn-primary btn-sm" id="summary-btn">{{ '重新產生總結' if summary else '產生今日總結' }}</button>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if chat_enabled %}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">跟營養師聊聊</h5>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="chat-clear">清除對話</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="chat-box" class="chat-box" aria-live="polite">
+                            <div class="text-muted small" id="chat-empty">可以問他怎麼吃、哪裡可以改進。營養師會參考你這一天的飲食紀錄回答。</div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 my-2" id="chat-chips">
+                            <button type="button" class="btn btn-outline-secondary btn-sm chat-chip">晚餐吃什麼比較好？</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm chat-chip">明天要怎麼改進？</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm chat-chip">纖維不夠有什麼簡單的補法？</button>
+                        </div>
+                        <form id="chat-form" class="d-flex gap-2">
+                            <input type="text" id="chat-input" class="form-control" maxlength="500" placeholder="輸入想問的問題…" autocomplete="off" aria-label="輸入問題">
+                            <button type="submit" class="btn btn-primary btn-sm" id="chat-send">送出</button>
+                        </form>
+                        <div class="small text-muted mt-1">AI 的建議僅供參考，不是醫療診斷。</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0">各餐明細（{{ data.meals|length }} 筆）</h5></div>
+                    <div class="card-body">
+                        {% for m in data.meals %}
+                        <div class="meal-card d-flex gap-3" id="meal-{{ m.id }}">
+                            {% if m.image %}<img src="{{ m.image }}" alt="" class="meal-thumb" onerror="this.style.visibility='hidden'">{% endif %}
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between">
+                                    <strong>{{ m.time }}</strong>
+                                    <button type="button" class="btn btn-outline-danger btn-sm meal-delete" data-id="{{ m.id }}">刪除</button>
+                                </div>
+                                <div>{% for it in m['items'] %}{{ it.name }}{% if it.count > 1 %}×{{ it.count }}{% endif %}（{{ it.weight_g|round|int }}g）{{ '、' if not loop.last }}{% endfor %}</div>
+                                <div class="small text-muted">
+                                    {{ m.calories|round|int }} 大卡｜蛋白質 {{ '%.1f' % m.protein }}g｜碳水 {{ '%.1f' % m.carbs }}g｜纖維 {{ '%.1f' % m.fiber }}g｜脂肪 {{ '%.1f' % m.fat }}g
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <a href="/" class="btn btn-primary">回首頁辨識食物</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DAY = {{ data.day|tojson }};
+        document.querySelectorAll('.meal-delete').forEach(btn => btn.addEventListener('click', () => {
+            if (!confirm('確定刪除這筆紀錄？')) return;
+            fetch('/api/log/meals/' + btn.dataset.id, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(d => { if (d.success) { location.reload(); } else { alert(d.error || '刪除失敗'); } })
+                .catch(() => alert('刪除失敗'));
+        }));
+
+        // ===== 跟營養師聊聊：回答以串流（每行一個 JSON）逐字顯示 =====
+        const chatForm = document.getElementById('chat-form');
+        if (chatForm) {
+            const box = document.getElementById('chat-box');
+            const input = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('chat-send');
+            const scrollDown = () => { box.scrollTop = box.scrollHeight; };
+            function addBubble(role, text) {
+                const empty = document.getElementById('chat-empty');
+                if (empty) empty.remove();
+                const el = document.createElement('div');
+                el.className = 'bubble ' + role;
+                el.textContent = text;
+                box.appendChild(el);
+                scrollDown();
+                return el;
+            }
+            function addMeta(text) {
+                const el = document.createElement('div');
+                el.className = 'bubble-meta';
+                el.textContent = text;
+                box.appendChild(el);
+                scrollDown();
+            }
+            const metaText = (m, secs) => (m ? `模型：${m}｜` : '') + (secs != null ? `${secs}s` : '');
+
+            fetch('/api/log/chat?date=' + DAY).then(r => r.json()).then(d => {
+                (d.messages || []).forEach(m => {
+                    addBubble(m.role, m.content);
+                    if (m.role === 'assistant') addMeta(metaText(m.model, m.seconds));
+                });
+            }).catch(() => {});
+
+            async function ask(message) {
+                sendBtn.disabled = true;
+                input.disabled = true;
+                addBubble('user', message);
+                const bubble = addBubble('assistant', '…');
+                let text = '';
+                try {
+                    const resp = await fetch('/api/log/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ date: DAY, message }) });
+                    if (!resp.ok || !resp.body) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err.error || '無法取得回覆');
+                    }
+                    const reader = resp.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buf = '';
+                    for (;;) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        buf += decoder.decode(value, { stream: true });
+                        let nl;
+                        while ((nl = buf.indexOf('\n')) >= 0) {
+                            const line = buf.slice(0, nl).trim();
+                            buf = buf.slice(nl + 1);
+                            if (!line) continue;
+                            const ev = JSON.parse(line);
+                            if (ev.t) { text += ev.t; bubble.textContent = text; scrollDown(); }
+                            else if (ev.error) { throw new Error(ev.error); }
+                            else if (ev.done) { addMeta(metaText(ev.model, ev.seconds)); }
+                        }
+                    }
+                } catch (e) {
+                    bubble.textContent = text || (e.message || '無法取得回覆');
+                    bubble.classList.add('text-danger');
+                } finally {
+                    sendBtn.disabled = false;
+                    input.disabled = false;
+                    input.focus();
+                }
+            }
+            chatForm.addEventListener('submit', e => {
+                e.preventDefault();
+                const message = input.value.trim();
+                if (!message) return;
+                input.value = '';
+                ask(message);
+            });
+            document.querySelectorAll('.chat-chip').forEach(chip => chip.addEventListener('click', () => {
+                if (!sendBtn.disabled) ask(chip.textContent);
+            }));
+            document.getElementById('chat-clear').addEventListener('click', () => {
+                if (!confirm('確定清除這一天的對話？')) return;
+                fetch('/api/log/chat?date=' + DAY, { method: 'DELETE' }).then(() => location.reload());
+            });
+        }
+
+        const sbtn = document.getElementById('summary-btn');
+        if (sbtn) sbtn.addEventListener('click', () => {
+            const text = document.getElementById('summary-text');
+            const meta = document.getElementById('summary-meta');
+            const force = sbtn.textContent.includes('重新');
+            sbtn.disabled = true;
+            text.classList.add('text-muted');
+            text.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>AI 營養師統整中，請稍候…';
+            meta.textContent = '';
+            fetch('/api/log/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ date: DAY, force }) })
+                .then(r => r.json())
+                .then(d => {
+                    text.classList.remove('text-muted');
+                    if (!d.success) { text.textContent = d.error || '總結產生失敗'; return; }
+                    text.textContent = d.text;
+                    meta.textContent = d.fallback ? '' : `模型：${d.model || '未知'}｜生成時間 ${d.seconds}s｜${d.created_at}`;
+                    sbtn.textContent = '重新產生總結';
+                })
+                .catch(() => { text.classList.remove('text-muted'); text.textContent = '總結產生失敗，請稍後再試'; })
+                .finally(() => { sbtn.disabled = false; });
+        });
+    </script>
+</body>
+</html>
