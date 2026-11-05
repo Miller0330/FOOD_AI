@@ -2,7 +2,9 @@
 
 分支：`Windows-GPU`。在 Windows 筆電上用獨立顯卡跑大型語言模型（LLM）：拍照辨識食物、程式計算營養、LLM 給出飲食建議，並可記錄每天吃的東西、產生每日總結、跟營養師持續對話。全部在本機執行，照片與飲食紀錄不上傳雲端。
 
-與其他平台共用網頁、營養計算與 100 類流程，只有 LLM 與偵測的推論實作不同（見 [`HAL_ARCHITECTURE.md`](HAL_ARCHITECTURE.md)）。
+與其他平台共用網頁、營養計算與 100 類流程，只有 LLM 與偵測的推論實作不同（見 [`HAL_ARCHITECTURE.md`](../docs/HAL_ARCHITECTURE.md)）。
+
+> 三塊開發板（Matrix、Genio、Voyager）的總覽見[專案根目錄的 README](../README.md)。
 
 > 設計原則：**營養數字一律由程式計算**，LLM 只負責把數字說成人話，並被要求不要提到紀錄裡沒有的食物。
 
